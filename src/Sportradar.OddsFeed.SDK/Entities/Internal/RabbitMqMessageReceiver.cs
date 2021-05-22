@@ -116,14 +116,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// <param name="eventArgs">A <see cref="BasicDeliverEventArgs"/> containing event information</param>
         private void consumer_OnReceived(object sender, BasicDeliverEventArgs eventArgs)
         {
-            if (eventArgs.Body == null || !eventArgs.Body.Any())
+            if (eventArgs.Body.IsEmpty)
             {
-                var body = eventArgs.Body == null ? "null" : "empty";
-                ExecutionLog.LogWarning($"A message with {body} body received. Aborting message processing");
+                ExecutionLog.LogWarning($"A message with empty body received. Aborting message processing");
                 return;
             }
 
             var receivedAt =  SdkInfo.ToEpochTime(DateTime.Now);
+            var bodyBytes = eventArgs.Body.ToArray();
 
             // NOT used for GetRawMessage()
             var sessionName = _interest == null ? "system" : _interest.Name;
@@ -136,8 +136,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                 using (var t = SdkMetricsFactory.MetricsRoot.Measure.Timer.Time(new TimerOptions {Context = "FEED", Name = "Message deserialization time", MeasurementUnit = Unit.Items}))
                 {
                     t.TrackUserValue(eventArgs.RoutingKey);
-                    messageBody = Encoding.UTF8.GetString(eventArgs.Body);
-                    feedMessage = _deserializer.Deserialize(new MemoryStream(eventArgs.Body));
+                    messageBody = Encoding.UTF8.GetString(bodyBytes);
+                    feedMessage = _deserializer.Deserialize(new MemoryStream(bodyBytes));
                     producer = _producerManager.Get(feedMessage.ProducerId);
                     messageName = feedMessage.GetType().Name;
 
@@ -185,14 +185,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
             {
                 ExecutionLog.LogError($"Failed to parse message. RoutingKey={eventArgs.RoutingKey} Message: {messageBody}", ex);
                 SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(new MeterOptions { Context = "FEED", Name = "Message deserialization exception" }, MetricTags.Empty, eventArgs.RoutingKey);
-                RaiseDeserializationFailed(eventArgs.Body);
+                RaiseDeserializationFailed(bodyBytes);
                 return;
             }
             catch (Exception ex)
             {
                 ExecutionLog.LogError($"Error consuming feed message. RoutingKey={eventArgs.RoutingKey} Message: {messageBody}", ex);
                 SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(new MeterOptions { Context = "FEED", Name = "Exception consuming feed message" }, MetricTags.Empty, eventArgs.RoutingKey);
-                RaiseDeserializationFailed(eventArgs.Body);
+                RaiseDeserializationFailed(bodyBytes);
                 return;
             }
 
@@ -237,7 +237,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                 }
             }
 
-            RaiseMessageReceived(feedMessage, eventArgs.Body);
+            RaiseMessageReceived(feedMessage, bodyBytes);
         }
 
         /// <summary>
