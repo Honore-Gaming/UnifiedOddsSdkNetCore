@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Dawn;
 using System.Linq;
+using Microsoft.Extensions.Logging;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Messages;
 
 namespace Sportradar.OddsFeed.SDK.API.Internal
@@ -59,9 +61,9 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         public DateTime LastTimestampBeforeDisconnect { get; private set; }
 
         /// <summary>
-        /// Gets the maximum recovery time
+        /// Gets the maximum recovery time in seconds
         /// </summary>
-        /// <value>The maximum recovery time</value>
+        /// <value>The maximum recovery time in seconds</value>
         public int MaxRecoveryTime { get; }
 
         /// <summary>
@@ -93,13 +95,16 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// Gets the scope of the producer
         /// </summary>
         /// <value>The scope</value>
-        internal IEnumerable<string> Scope { get; }
+        public IEnumerable<string> Scope { get; }
 
         /// <summary>
         /// Gets the recovery info about last recovery attempt
         /// </summary>
         /// <value>The recovery info about last recovery attempt</value>
         public IRecoveryInfo RecoveryInfo { get; internal set; }
+
+        /// <inheritdoc />
+        public int StatefulRecoveryWindow { get; }
 
         internal ConcurrentDictionary<long, URN> EventRecoveries { get; }
 
@@ -112,10 +117,10 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// <param name="apiUrl">The API URL</param>
         /// <param name="active">if set to <c>true</c> [active]</param>
         /// <param name="maxInactivitySeconds">The maximum time between two alive messages before the producer is marked as down</param>
-        /// <param name="maxRecoveryTime">The maximum time in which recovery must be completed</param>
+        /// <param name="maxRecoveryTime">The maximum time in seconds in which recovery must be completed</param>
         /// <param name="scope">The scope of the producer</param>
-        public Producer(int id, string name, string description, string apiUrl, bool active, int maxInactivitySeconds,
-            int maxRecoveryTime, string scope)
+        /// <param name="statefulRecoveryWindowInMinutes">The stateful recovery window in minutes</param>
+        public Producer(int id, string name, string description, string apiUrl, bool active, int maxInactivitySeconds, int maxRecoveryTime, string scope, int statefulRecoveryWindowInMinutes)
         {
             Guard.Argument(id).Positive();
             Guard.Argument(name, nameof(name)).NotNull().NotEmpty();
@@ -142,6 +147,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             MaxInactivitySeconds = maxInactivitySeconds;
             MaxRecoveryTime = maxRecoveryTime;
             Scope = scope.Split('|');
+            StatefulRecoveryWindow = statefulRecoveryWindowInMinutes;
 
             IgnoreRecovery = false;
             EventRecoveries = new ConcurrentDictionary<long, URN>();
@@ -171,7 +177,15 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// <param name="timestamp">The timestamp</param>
         internal void SetLastTimestampBeforeDisconnect(DateTime timestamp)
         {
-            LastTimestampBeforeDisconnect = timestamp;
+            if (timestamp >= LastTimestampBeforeDisconnect)
+            {
+                LastTimestampBeforeDisconnect = timestamp;
+            }
+            else if (timestamp < LastTimestampBeforeDisconnect.AddSeconds(-MaxInactivitySeconds))
+            {
+                var logger = SdkLoggerFactory.GetLoggerForExecution(typeof(Producer));
+                logger.LogWarning($"Suspicious feed message timestamp arrived for producer {Id}. Current={LastTimestampBeforeDisconnect}. Arrived={timestamp}");
+            }
         }
 
         /// <summary>

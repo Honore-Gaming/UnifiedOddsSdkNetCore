@@ -9,6 +9,8 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
+using Castle.Core.Internal;
+using Microsoft.Extensions.Logging;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events;
@@ -50,7 +52,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl
             _cultures.Where(c => GetOrLoadCompetitor().GetAbbreviation(c) != null).ToDictionary(c => c, GetOrLoadCompetitor().GetAbbreviation));
 
         /// <summary>
-        /// Gets a value indicating whether the current <see cref="ICompetitor" /> is virtual - i.e. competes in a virtual sport
+        /// Gets a value indicating whether the current instance represents a placeholder team
         /// </summary>
         public bool IsVirtual => GetOrLoadCompetitor().IsVirtual;
 
@@ -111,10 +113,17 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl
         {
             get
             {
-                var associatedPlayerIds = GetOrLoadCompetitor()?.AssociatedPlayerIds?.ToList();
-                if (associatedPlayerIds != null && associatedPlayerIds.Any())
+                try
                 {
-                    return _sportEntityFactory.BuildPlayersAsync(associatedPlayerIds, _cultures, _exceptionStrategy).Result;
+                    var associatedPlayerIds = GetOrLoadCompetitor()?.AssociatedPlayerIds?.ToList();
+                    if (!associatedPlayerIds.IsNullOrEmpty())
+                    {
+                        return _sportEntityFactory.BuildPlayersAsync(associatedPlayerIds, _cultures, _exceptionStrategy).Result;
+                    }
+                }
+                catch (Exception e)
+                {
+                    SdkLoggerFactory.GetLoggerForExecution(typeof(Competitor)).LogError(e, "Getting Competitor associated players");
                 }
 
                 return new List<IPlayer>();
@@ -264,12 +273,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl
             Guard.Argument(cultures, nameof(cultures)).NotNull();
             Guard.Argument(sportEntityFactory, nameof(sportEntityFactory)).NotNull();
 
-            if (ci == null)
-            {
-                // above contract requirement throws even when ci in fact not null
-                throw new ArgumentNullException(nameof(ci));
-            }
-
             _competitorId = ci.Id;
             _competitorCI = ci;
             _profileCache = profileCache;
@@ -299,12 +302,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl
         {
             Guard.Argument(cultures, nameof(cultures)).NotNull().NotEmpty();
             Guard.Argument(sportEntityFactory, nameof(sportEntityFactory)).NotNull();
-
-            if (ci == null)
-            {
-                // above contract requirement throws even when ci in fact not null
-                throw new ArgumentNullException(nameof(ci));
-            }
 
             _competitorId = ci.Id;
             _competitorCI = ci;
@@ -378,17 +375,18 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl
         protected override string PrintC()
         {
             var abbreviations = string.Join(", ", Abbreviations.Select(x => x.Key.TwoLetterISOLanguageName + ":" + x.Value));
-            var associatedPlayers = string.Empty;
-            if (AssociatedPlayers != null && AssociatedPlayers.Any())
+            var associatedPlayersStr = string.Empty;
+            var associatedPlayerIds = _competitorCI?.GetAssociatedPlayerIds();
+            if (!associatedPlayerIds.IsNullOrEmpty())
             {
-                associatedPlayers = string.Join(", ", AssociatedPlayers.Select(s => s.Id + ": " + s.GetName(_cultures.First())));
-                associatedPlayers = $", AssociatedPlayers=[{associatedPlayers}]";
+                associatedPlayersStr = string.Join(", ", associatedPlayerIds);
+                associatedPlayersStr = $", AssociatedPlayers=[{associatedPlayersStr}]";
             }
             var reference = _referenceId?.ReferenceIds == null || !_referenceId.ReferenceIds.Any()
                                 ? string.Empty
                                 // ReSharper disable once RedundantAssignment
                                 : _referenceId.ReferenceIds.Aggregate(string.Empty, (current, item) => current = $"{current}, {item.Key}={item.Value}").Substring(2);
-            return $"{base.PrintC()}, Gender={Gender}, Reference={reference}, Abbreviations=[{abbreviations}]{associatedPlayers}";
+            return $"{base.PrintC()}, Gender={Gender}, Reference={reference}, Abbreviations=[{abbreviations}]{associatedPlayersStr}";
         }
 
         /// <summary>

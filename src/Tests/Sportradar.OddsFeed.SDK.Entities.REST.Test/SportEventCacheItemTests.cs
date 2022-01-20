@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.Caching;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events;
@@ -35,7 +36,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             _dataRouterManager = new TestDataRouterManager(_cacheManager);
 
             _timer = new TestTimer(false);
-            _sportEventCache = new SportEventCache(_memoryCache, _dataRouterManager, new SportEventCacheItemFactory(_dataRouterManager, new SemaphorePool(5), TestData.Cultures.First(), new MemoryCache("FixtureTimestampCache")), _timer, TestData.Cultures, _cacheManager);
+            _sportEventCache = new SportEventCache(_memoryCache, _dataRouterManager, new SportEventCacheItemFactory(_dataRouterManager, new SemaphorePool(5, ExceptionHandlingStrategy.THROW), TestData.Cultures.First(), new MemoryCache("FixtureTimestampCache")), _timer, TestData.Cultures, _cacheManager);
         }
 
         [TestMethod]
@@ -51,7 +52,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
                 await cacheItem.GetCompetitorsIdsAsync(TestData.Cultures);
                 await cacheItem.GetTournamentRoundAsync(TestData.Cultures);
                 await cacheItem.GetSeasonAsync(TestData.Cultures);
-                await cacheItem.GetTournamentIdAsync();
+                await cacheItem.GetTournamentIdAsync(TestData.Cultures);
                 await cacheItem.GetVenueAsync(TestData.Cultures);
                 await cacheItem.GetFixtureAsync(TestData.Cultures);
                 await cacheItem.GetReferenceIdsAsync();
@@ -151,19 +152,19 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
         }
 
         [TestMethod]
-        public void get_tournament_id_async_calls_provider_with_default_locale()
+        public void get_tournament_id_async_calls_provider_with_all_locales()
         {
             var cacheItem = (IMatchCI)_sportEventCache.GetEventCacheItem(TestData.EventId);
 
             var task = Task.Run(async () =>
             {
-                await cacheItem.GetTournamentIdAsync();
+                await cacheItem.GetTournamentIdAsync(TestData.Cultures);
                 await cacheItem.GetVenueAsync(new[] { new CultureInfo("de") });
             });
 
             Task.WaitAll(task);
 
-            Assert.AreEqual(2, _dataRouterManager.GetCallCount(SportEventSummary), $"{SportEventSummary} should be called exactly 2 times.");
+            Assert.AreEqual(3, _dataRouterManager.GetCallCount(SportEventSummary), $"{SportEventSummary} should be called exactly 3 times.");
             Assert.AreEqual(0, _dataRouterManager.GetCallCount(SportEventFixture), $"{SportEventFixture} should be called exactly 0 times.");
         }
 

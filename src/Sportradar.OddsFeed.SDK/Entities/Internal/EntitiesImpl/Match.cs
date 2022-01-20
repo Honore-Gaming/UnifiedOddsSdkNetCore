@@ -32,7 +32,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal.EntitiesImpl
         private static readonly ILogger ExecutionLogPrivate = SdkLoggerFactory.GetLogger(typeof(Match));
 
         private readonly ISportEntityFactory _sportEntityFactory;
-        protected readonly ILocalizedNamedValueCache MatchStatusCache;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Match"/> class.
@@ -56,7 +55,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal.EntitiesImpl
             : base(ExecutionLogPrivate, id, sportId, sportEntityFactory, sportEventStatusCache, sportEventCache, cultures, exceptionStrategy, matchStatusCache)
         {
             _sportEntityFactory = sportEntityFactory;
-            MatchStatusCache = matchStatusCache;
         }
 
         /// <summary>
@@ -182,8 +180,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal.EntitiesImpl
                 return null;
             }
             var tournamentId = ExceptionStrategy == ExceptionHandlingStrategy.THROW
-                ? await matchCI.GetTournamentIdAsync().ConfigureAwait(false)
-                : await new Func<Task<URN>>(matchCI.GetTournamentIdAsync).SafeInvokeAsync(ExecutionLog, GetFetchErrorMessage("ILongTermEvent")).ConfigureAwait(false);
+                ? await matchCI.GetTournamentIdAsync(Cultures).ConfigureAwait(false)
+                : await new Func<IEnumerable<CultureInfo>, Task<URN>>(matchCI.GetTournamentIdAsync).SafeInvokeAsync(Cultures, ExecutionLog, GetFetchErrorMessage("ILongTermEvent")).ConfigureAwait(false);
 
             return tournamentId == null
                 ? null
@@ -220,11 +218,35 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal.EntitiesImpl
                 ExecutionLog.LogDebug($"Missing data. No match cache item for id={Id}.");
                 return null;
             }
-
-            //var oneCulture = new List<CultureInfo> {Cultures.First()};
+            
             var eventTimelineCI = ExceptionStrategy == ExceptionHandlingStrategy.THROW
                 ? await matchCI.GetEventTimelineAsync(Cultures).ConfigureAwait(false)
                 : await new Func<IEnumerable<CultureInfo>, Task<EventTimelineCI>>(matchCI.GetEventTimelineAsync).SafeInvokeAsync(Cultures, ExecutionLog, GetFetchErrorMessage("EventTimeline")).ConfigureAwait(false);
+
+            return eventTimelineCI == null
+                ? null
+                : new EventTimeline(eventTimelineCI);
+        }
+
+        /// <summary>
+        /// Asynchronously gets the associated event timeline for single culture
+        /// </summary>
+        /// <param name="culture">The languages to which the returned instance should be translated</param>
+        /// <remarks>Recommended to be used when only <see cref="IEventTimeline"/> is needed for this <see cref="IMatch"/></remarks>
+        /// <returns>A <see cref="Task{IEventTimeline}"/> representing the retrieval operation</returns>
+        public async Task<IEventTimeline> GetEventTimelineAsync(CultureInfo culture)
+        {
+            var matchCI = (IMatchCI)SportEventCache.GetEventCacheItem(Id);
+            if (matchCI == null)
+            {
+                ExecutionLog.LogDebug($"Missing data. No match cache item for id={Id}.");
+                return null;
+            }
+
+            var oneCulture = new List<CultureInfo> {culture ?? Cultures.First()};
+            var eventTimelineCI = ExceptionStrategy == ExceptionHandlingStrategy.THROW
+                ? await matchCI.GetEventTimelineAsync(oneCulture).ConfigureAwait(false)
+                : await new Func<IEnumerable<CultureInfo>, Task<EventTimelineCI>>(matchCI.GetEventTimelineAsync).SafeInvokeAsync(oneCulture, ExecutionLog, GetFetchErrorMessage("EventTimeline")).ConfigureAwait(false);
 
             return eventTimelineCI == null
                 ? null

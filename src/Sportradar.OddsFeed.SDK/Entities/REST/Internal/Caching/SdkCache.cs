@@ -34,10 +34,18 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
         protected readonly ILogger ExecutionLog;
 
         /// <summary>
+        /// The cache log
+        /// </summary>
+        protected readonly ILogger CacheLog;
+
+        /// <summary>
         /// The cache manager
         /// </summary>
         private readonly ICacheManager _cacheManager;
 
+        /// <summary>
+        /// The metrics
+        /// </summary>
         private readonly IMetricsRoot _metrics;
 
         /// <summary>
@@ -55,6 +63,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
             RegisterCache();
 
             ExecutionLog = SdkLoggerFactory.GetLoggerForExecution(GetType());
+            CacheLog = SdkLoggerFactory.GetLoggerForCache(GetType());
         }
 
         /// <summary>
@@ -66,12 +75,12 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
         /// <summary>
         /// Registers the cache in <see cref="CacheManager" />
         /// </summary>
-        public virtual void RegisterCache()
+        public void RegisterCache()
         {
             SetDtoTypes();
             if (RegisteredDtoTypes == null)
             {
-                throw new FieldAccessException(nameof(RegisteredDtoTypes));
+                throw new InvalidOperationException($"{CacheName} cache has no registered dto types.");
             }
             _cacheManager.RegisterCache(CacheName, this);
         }

@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using App.Metrics.Health;
 using Microsoft.Extensions.Logging;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Exceptions;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching;
@@ -60,8 +61,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
         /// Value indicating whether the current instance was already disposed
         /// </summary>
         private bool _isDisposed;
-
-        private readonly  CacheItemPolicy _cacheItemPolicy = new CacheItemPolicy { SlidingExpiration = TimeSpan.FromHours(3) };
 
         private readonly ConcurrentDictionary<string, DateTime> _fetchedVariants = new ConcurrentDictionary<string, DateTime>();
 
@@ -114,10 +113,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
 
             _semaphoreCacheMerge.Wait();
             var cacheItem = _cache.GetCacheItem(GetCacheKey(id, variant));
-            if (!_isDisposed)
-            {
-                _semaphoreCacheMerge.Release();
-            }
+            _semaphoreCacheMerge.ReleaseSafe();
             return (MarketDescriptionCacheItem)cacheItem?.Value;
         }
 
@@ -196,6 +192,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
 
                 description = (MarketDescriptionCacheItem) cachedItem?.Value;
 
+                //sometimes it may be null (aka Not Found), but we still do not to re-fetch immediately
                 foreach (var cultureInfo in missingLanguages)
                 {
                     _fetchedVariants[GetFetchedVariantsKey(id, variant, cultureInfo)] = DateTime.Now;
@@ -203,13 +200,9 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
             }
             finally
             {
-                if (!_isDisposed)
-                {
-                    _semaphore.Release();
-                }
+                _semaphore.ReleaseSafe();
             }
             return description;
-
         }
 
         /// <summary>
@@ -330,6 +323,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
             {
                 if (cacheItemType == CacheItemType.All || cacheItemType == CacheItemType.MarketDescription)
                 {
+                    CacheLog.LogDebug($"Delete variant market: {id}");
                     _cache.Remove(id.Id.ToString());
                 }
             }
@@ -359,7 +353,11 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
                     ExecutionLog.LogWarning($"Error deleting fetchedVariants for {id}", e);
                 }
 
-                _cache.Remove(id);
+                if (_cache.Contains(id))
+                {
+                    CacheLog.LogDebug($"Delete variant market: {id}");
+                    _cache.Remove(id);
+                }
             }
         }
 
@@ -485,6 +483,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
                     break;
                 case DtoType.TournamentInfoList:
                     break;
+                case DtoType.PeriodSummary:
+                    break;
                 default:
                     ExecutionLog.LogWarning($"Trying to add unchecked dto type: {dtoType} for id: {id}.");
                     break;
@@ -510,13 +510,12 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
             try
             {
                 _semaphoreCacheMerge.Wait();
-                var cachedItem = _cache.GetCacheItem(GetCacheKey(description.Id, description.Variant));
+                var cacheId = GetCacheKey(description.Id, description.Variant);
+                var cachedItem = _cache.GetCacheItem(cacheId);
                 if (cachedItem == null)
                 {
-
-                    cachedItem = new CacheItem(GetCacheKey(description.Id, description.Variant), MarketDescriptionCacheItem.Build(description, _mappingValidatorFactory, culture, CacheName));
-                    _cache.Add(cachedItem, _cacheItemPolicy);
-
+                    cachedItem = new CacheItem(cacheId, MarketDescriptionCacheItem.Build(description, _mappingValidatorFactory, culture, CacheName));
+                    _cache.Add(cachedItem, new CacheItemPolicy {SlidingExpiration = OperationManager.VariantMarketDescriptionCacheTimeout});
                 }
                 else
                 {
@@ -533,10 +532,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
             }
             finally
             {
-                if (!_isDisposed)
-                {
-                    _semaphoreCacheMerge.Release();
-                }
+                _semaphoreCacheMerge.ReleaseSafe();
             }
         }
 

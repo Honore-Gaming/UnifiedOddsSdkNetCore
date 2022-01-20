@@ -2,6 +2,7 @@
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
 using System;
+using System.Threading;
 using Dawn;
 using RabbitMQ.Client;
 using Sportradar.OddsFeed.SDK.API.Internal;
@@ -18,7 +19,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// <summary>
         /// The <see cref="IConnectionFactory"/> used to construct connections to the broker
         /// </summary>
-        private readonly ConfiguredConnectionFactory _connectionFactory;
+        public ConfiguredConnectionFactory ConnectionFactory { get; }
 
         /// <summary>
         /// The object used to ensure thread safety
@@ -38,7 +39,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             Guard.Argument(connectionFactory, nameof(connectionFactory)).NotNull();
 
-            _connectionFactory = connectionFactory;
+            ConnectionFactory = connectionFactory;
         }
 
         /// <summary>
@@ -49,7 +50,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             lock (_lock)
             {
-                return _connectionFactory.CreateConnection().CreateModel();
+                return ConnectionFactory.CreateConnection().CreateModel();
             }
         }
 
@@ -57,8 +58,9 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             lock (_lock)
             {
-                _connectionFactory.CloseConnection();
-                _connectionFactory.CreateConnection();
+                ConnectionFactory.CloseConnection();
+                Thread.Sleep(5000);
+                ConnectionFactory.CreateConnection();
             }
         }
 
@@ -69,7 +71,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             lock (_lock)
             {
-                return _connectionFactory.IsConnected();
+                return ConnectionFactory.IsConnected();
             }
         }
 
@@ -80,11 +82,11 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             get
             {
-                if (_connectionFactory != null)
+                if (ConnectionFactory != null)
                 {
                     lock (_lock)
                     {
-                        return _connectionFactory.ConnectionCreated;
+                        return ConnectionFactory.ConnectionCreated;
                     }
                 }
                 return DateTime.MinValue;
@@ -105,7 +107,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// </summary>
         /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources;
         /// <c>false</c> to release only unmanaged resources.</param>
-        private void Dispose(bool disposing)
+        protected virtual void Dispose(bool disposing)
         {
             if (_disposed || !disposing)
             {
@@ -115,7 +117,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
             _disposed = true;
             lock (_lock)
             {
-                _connectionFactory.Dispose();
+                ConnectionFactory.Dispose();
             }
         }
     }

@@ -1,6 +1,7 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -167,14 +168,15 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
         /// <summary>
         /// Get tournament identifier as an asynchronous operation
         /// </summary>
+        /// <param name="cultures">A <see cref="IEnumerable{CultureInfo}"/> specifying the languages to which the returned instance should be translated</param>
         /// <returns>A <see cref="Task{URN}" /> representing the asynchronous operation</returns>
-        public async Task<URN> GetTournamentIdAsync()
+        public async Task<URN> GetTournamentIdAsync(IEnumerable<CultureInfo> cultures)
         {
             if (_tournamentId != null)
             {
                 return _tournamentId;
             }
-            await FetchMissingSummary(new List<CultureInfo> { DefaultCulture }, false).ConfigureAwait(false);
+            await FetchMissingSummary(cultures, false).ConfigureAwait(false);
             return _tournamentId;
         }
 
@@ -303,21 +305,21 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
         /// <summary>
         /// Merges the specified fixture
         /// </summary>
-        /// <param name="fixture">The fixture</param>
+        /// <param name="fixtureDTO">The fixture</param>
         /// <param name="culture">The culture</param>
         /// <param name="useLock">Should the lock mechanism be used during merge</param>
-        public new void MergeFixture(FixtureDTO fixture, CultureInfo culture, bool useLock)
+        public new void MergeFixture(FixtureDTO fixtureDTO, CultureInfo culture, bool useLock)
         {
             if (useLock)
             {
                 lock (MergeLock)
                 {
-                    ActualMergeFixture(fixture, culture);
+                    ActualMergeFixture(fixtureDTO, culture);
                 }
             }
             else
             {
-                ActualMergeFixture(fixture, culture);
+                ActualMergeFixture(fixtureDTO, culture);
             }
         }
 

@@ -24,13 +24,13 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
     /// <summary>
     /// Class used to manually create SDK exposed entities
     /// </summary>
-    public class MessageFactorySdk
+    public static class MessageFactorySdk
     {
         private static Dictionary<CultureInfo, string> GetNames(List<CultureInfo> cultures)
         {
             if (cultures == null || !cultures.Any())
             {
-                cultures = TestData.Cultures3;
+                cultures = TestData.Cultures3.ToList();
             }
             return cultures.ToDictionary(c => c, c => $"{c.TwoLetterISOLanguageName} name " + SR.S1000);
         }
@@ -95,8 +95,8 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
         {
             return new PeriodScore(new PeriodScoreDTO(new periodScore
             {
-                                    home_score = SR.I100,
-                                    away_score = SR.I100,
+                                    home_score = SR.S100,
+                                    away_score = SR.S100,
                                     type = "regular_period",
                                     numberSpecified = true,
                                     number = 1

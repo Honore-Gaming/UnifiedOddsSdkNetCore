@@ -89,11 +89,11 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
         /// <param name="prefetchLanguages">A <see cref="IReadOnlyCollection{CultureInfo}"/> specifying the languages for which the data should be pre-fetched</param>
         /// <param name="cacheManager">A <see cref="ICacheManager"/> used to interact among caches</param>
         public VariantDescriptionListCache(MemoryCache cache,
-                                       IDataRouterManager dataRouterManager,
-                                       IMappingValidatorFactory mappingValidatorFactory,
-                                       ITimer timer,
-                                       IEnumerable<CultureInfo> prefetchLanguages,
-                                       ICacheManager cacheManager)
+                                           IDataRouterManager dataRouterManager,
+                                           IMappingValidatorFactory mappingValidatorFactory,
+                                           ITimer timer,
+                                           IEnumerable<CultureInfo> prefetchLanguages,
+                                           ICacheManager cacheManager)
             : base(cacheManager)
         {
             Guard.Argument(cache, nameof(cache)).NotNull();
@@ -171,11 +171,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
         {
             _semaphoreCacheMerge.Wait();
             var cacheItem = _cache.GetCacheItem(id);
-            //ExecutionLog.LogDebug($"GetItemFromCache({id}). Exists={cacheItem!=null}.");
-            if (!_isDisposed)
-            {
-                _semaphoreCacheMerge.Release();
-            }
+            _semaphoreCacheMerge.ReleaseSafe();
             return (VariantDescriptionCacheItem) cacheItem?.Value;
         }
 
@@ -235,7 +231,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
             {
                 if (!_isDisposed)
                 {
-                    _semaphore.Release();
+                    _semaphore.ReleaseSafe();
                 }
             }
 
@@ -502,6 +498,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
                     break;
                 case DtoType.TournamentInfoList:
                     break;
+                case DtoType.PeriodSummary:
+                    break;
                 default:
                     ExecutionLog.LogWarning($"Trying to add unchecked dto type: {dtoType} for id: {id}.");
                     break;
@@ -551,7 +549,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames
             {
                 if (!_isDisposed)
                 {
-                    _semaphoreCacheMerge.Release();
+                    _semaphoreCacheMerge.ReleaseSafe();
                 }
             }
         }

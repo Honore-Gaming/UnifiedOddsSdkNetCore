@@ -9,6 +9,7 @@ using System.Runtime.Caching;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events;
@@ -55,7 +56,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             _memoryCache = new MemoryCache("cache");
 
             _timer = new TestTimer(false);
-            _sportEventCache = new SportEventCache(_memoryCache, _dataRouterManager, new SportEventCacheItemFactory(_dataRouterManager, new SemaphorePool(5), _cultureEn, new MemoryCache("FixtureTimestampCache")), _timer, TestData.Cultures, _cacheManager);
+            _sportEventCache = new SportEventCache(_memoryCache, _dataRouterManager, new SportEventCacheItemFactory(_dataRouterManager, new SemaphorePool(5, ExceptionHandlingStrategy.THROW), _cultureEn, new MemoryCache("FixtureTimestampCache")), _timer, TestData.Cultures, _cacheManager);
             _sportDataCache = new SportDataCache(_dataRouterManager, _timer, TestData.Cultures, _sportEventCache, _cacheManager);
         }
 
@@ -127,8 +128,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
 
                 var tournamentSport = await _sportDataCache.GetSportForTournamentAsync(URN.Parse("sr:tournament:146"), TestData.Cultures);
                 Assert.IsNotNull(tournamentSport, "tournamentSport cannot be a null reference");
-                Assert.AreEqual(tournamentSport.Categories.Count(), 1, "The number of categories must be 1");
-                Assert.AreEqual(tournamentSport.Categories.First().Tournaments.Count(), 1, "the number of tournaments must be 1");
+                Assert.AreEqual(1, tournamentSport.Categories.Count(), "The number of categories must be 1");
+                Assert.AreEqual(1, tournamentSport.Categories.First().Tournaments.Count(), "the number of tournaments must be 1");
             }).GetAwaiter().GetResult();
             Assert.AreEqual(TestData.Cultures.Count, _dataRouterManager.GetCallCount(callType), $"{callType} should be called exactly {TestData.Cultures.Count} times.");
         }
@@ -167,8 +168,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
                 Assert.IsNotNull(tournament, "tournament cannot be a null reference");
                 Assert.IsNotNull(tournamentEvents, "tournamentEvents cannot be a null reference");
                 Assert.IsNotNull(dateEvents, "dateEvents cannot be a null reference");
-                Assert.AreEqual(tournamentSport.Categories.Count(), 1, "The number of categories must be 1");
-                Assert.AreEqual(tournamentSport.Categories.First().Tournaments.Count(), 1, "the number of tournaments must be 1");
+                Assert.AreEqual(1, tournamentSport.Categories.Count(), "The number of categories must be 1");
+                Assert.AreEqual(1, tournamentSport.Categories.First().Tournaments.Count(), "the number of tournaments must be 1");
             }
         }
 
@@ -396,7 +397,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
                     foreach (var j in i.Tournaments)
                     {
                         Assert.IsNotNull(j.Id);
-                        //Assert.AreEqual(cultureNbr, j.Names.Count);
                     }
                 }
             }

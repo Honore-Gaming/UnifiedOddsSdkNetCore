@@ -77,6 +77,16 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         public event EventHandler<EventRecoveryCompletedEventArgs> EventRecoveryCompleted;
 
         /// <summary>
+        /// The time of last feed message associated with recovery
+        /// </summary>
+        private DateTime _lastRecoveryMessage;
+
+        /// <summary>
+        /// The timestamp when the connection went down (if down)
+        /// </summary>
+        private DateTime _connectionDownTimestamp;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="ProducerRecoveryManager"/> class
         /// </summary>
         /// <param name="producer">A <see cref="IProducer"/> for which status is tracked</param>
@@ -96,6 +106,8 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             _minIntervalBetweenRecoveryRequests = minIntervalBetweenRecoveryRequests;
 
             Status = ProducerRecoveryStatus.NotStarted;
+            _lastRecoveryMessage = DateTime.Now;
+            _connectionDownTimestamp = DateTime.MinValue;
         }
 
         /// <summary>
@@ -128,7 +140,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                 }
                 finally
                 {
-                    _semaphoreStatusChange.Release();
+                    _semaphoreStatusChange.ReleaseSafe();
                 }
             });
         }
@@ -203,6 +215,8 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
             lock (_syncLock)
             {
+                _connectionDownTimestamp = DateTime.Now;
+
                 ProducerRecoveryStatus? newStatus = null;
 
                 if (Status == ProducerRecoveryStatus.Completed || Status == ProducerRecoveryStatus.Delayed)
@@ -219,6 +233,36 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                 else
                 {
                     ExecutionLog.LogWarning($"Connection shutdown detected. Producer={Producer}, Status={Enum.GetName(typeof(ProducerRecoveryStatus), Status)}, Action: No action required.");
+                }
+
+                if (newStatus != null && newStatus.Value != Status)
+                {
+                    SetStatusAndRaiseEvent(null, newStatus.Value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Executes the steps required when the connection to the message broker is recovered after shutdown.
+        /// </summary>
+        public void ConnectionRecovered()
+        {
+            if (!_producer.IsAvailable || _producer.IsDisabled || _producer.IgnoreRecovery)
+            {
+                return;
+            }
+
+            lock (_syncLock)
+            {
+                _connectionDownTimestamp = DateTime.MinValue;
+
+                ProducerRecoveryStatus? newStatus = null;
+
+                if (Status == ProducerRecoveryStatus.Started)
+                {
+                    ExecutionLog.LogWarning($"Connection recovery detected after previous recovery request started. Producer={Producer}, Status={Enum.GetName(typeof(ProducerRecoveryStatus), Status)}, Action: Resetting current recovery operation.");
+                    _recoveryOperation.Reset();
+                    newStatus = ProducerRecoveryStatus.Error;
                 }
 
                 if (newStatus != null && newStatus.Value != Status)
@@ -287,6 +331,12 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     if (snapshotComplete != null)
                     {
                         newStatus = ProcessSnapshotCompleteMessage(snapshotComplete, interest);
+                    }
+
+                    // reset connection down timestamp if messages arrived after new connection was done
+                    if (_connectionDownTimestamp > DateTime.MinValue && SdkInfo.FromEpochTime(_timestampTracker.SystemAliveTimestamp) > _connectionDownTimestamp)
+                    {
+                        ConnectionRecovered();
                     }
                 }
                 catch (Exception ex)
@@ -494,6 +544,34 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                         ExecutionLog.LogWarning($"Producer id={Producer.Id}: recovery timeout. New recovery from {_timestampTracker.SystemAliveTimestamp} will be done.");
                         newStatus = ProducerRecoveryStatus.Error;
                     }
+
+                    // check if any message arrived for this producer in the last X seconds; if not, start recovery
+                    if ((Status == ProducerRecoveryStatus.NotStarted || Status == ProducerRecoveryStatus.Error) 
+                        && newStatus != ProducerRecoveryStatus.Started
+                        && DateTime.Now - SdkInfo.FromEpochTime(_timestampTracker.SystemAliveTimestamp) > TimeSpan.FromSeconds(60)
+                        && SdkInfo.FromEpochTime(_timestampTracker.SystemAliveTimestamp) > _connectionDownTimestamp)
+                    {
+                        ExecutionLog.LogWarning($"Producer id={Producer.Id}: no alive messages arrived since {SdkInfo.FromEpochTime(_timestampTracker.SystemAliveTimestamp)}. New recovery will be done.");
+                        var recoveryStarted = StartRecovery();
+                        if (recoveryStarted.HasValue && recoveryStarted.Value)
+                        {
+                            newStatus = ProducerRecoveryStatus.Started;
+                        }
+                    }
+
+                    // recovery is called and we check if any recovery message arrived in last X time; or restart recovery
+                    if (Status == ProducerRecoveryStatus.Started && _recoveryOperation.IsRunning && DateTime.Now - _lastRecoveryMessage > TimeSpan.FromSeconds(300))
+                    {
+                        ExecutionLog.LogWarning($"Producer id={Producer.Id}: no recovery message arrived since {_lastRecoveryMessage}. New recovery will be done.");
+                        _recoveryOperation.Interrupt(SdkInfo.FromEpochTime(_timestampTracker.SystemAliveTimestamp));
+                        _recoveryOperation.Reset();
+                        var recoveryStarted = StartRecovery();
+                        if (recoveryStarted.HasValue && recoveryStarted.Value)
+                        {
+                            newStatus = ProducerRecoveryStatus.Started;
+                        }
+                    }
+
                     ExecutionLog.LogInformation($"Status check: Producer={_producer}({Enum.GetName(typeof(ProducerRecoveryStatus), Status)}), Timing Info={_timestampTracker}");
                 }
                 catch (Exception ex)
@@ -510,14 +588,15 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
         private bool? StartRecovery()
         {
-            var duration = TimeProviderAccessor.Current.Now - _recoveryOperation.LastStartTime;
+            var duration = TimeProviderAccessor.Current.Now - _recoveryOperation.LastAttemptTime;
 
             if (duration.TotalSeconds > _minIntervalBetweenRecoveryRequests)
             {
+                _lastRecoveryMessage = DateTime.Now;
                 return _recoveryOperation.Start();
             }
 
-            ExecutionLog.LogInformation($"Producer={_producer.Id}: Recovery operation skipped.");
+            ExecutionLog.LogInformation($"Producer={_producer.Id}: Recovery operation skipped. Last done at {_recoveryOperation.LastAttemptTime}");
             return null;
         }
     }

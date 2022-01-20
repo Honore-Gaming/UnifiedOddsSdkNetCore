@@ -3,9 +3,12 @@
 */
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
 using Dawn;
 using System.Linq;
+using Microsoft.Extensions.Logging;
+using Sportradar.OddsFeed.SDK.API.EventArguments;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Exceptions;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Messages;
@@ -19,6 +22,16 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
     /// <seealso cref="IProducerManager" />
     internal class ProducerManager : IProducerManager
     {
+        /// <summary>
+        /// A <see cref="ILogger"/> instance used for logging
+        /// </summary>
+        private static readonly ILogger Log = SdkLoggerFactory.GetLoggerForExecution(typeof(ProducerManager));
+
+        /// <summary>
+        /// Occurs when a recovery initiation completes
+        /// </summary>
+        public event EventHandler<RecoveryInitiatedEventArgs> RecoveryInitiated;
+
         /// <summary>
         /// The producers
         /// </summary>
@@ -41,11 +54,15 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         private bool _locked;
 
         /// <summary>
+        /// Gets the indication whether the after age should be adjusted before executing recovery request
+        /// </summary>
+        private readonly bool _adjustAfterAge;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="ProducerManager"/> class
         /// </summary>
         /// <param name="producersProvider">The producers provider.</param>
         /// <param name="config">The <see cref="IOddsFeedConfiguration"/> used for retrieve disabled producers</param>
-        [SuppressMessage("ReSharper", "PossibleMultipleEnumeration")]
         public ProducerManager(IProducersProvider producersProvider, IOddsFeedConfiguration config)
         {
             Guard.Argument(producersProvider, nameof(producersProvider)).NotNull();
@@ -64,6 +81,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             }
 
             _locked = false;
+            _adjustAfterAge = config.AdjustAfterAge;
         }
 
         /// <summary>
@@ -162,13 +180,31 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             Guard.Argument(timestamp, nameof(timestamp)).Require(timestamp > DateTime.MinValue);
 
             var p = (Producer) Get(id);
+            if (p.Id.Equals(SdkInfo.UnknownProducerId))
+            {
+                return;
+            }
             if (timestamp > DateTime.Now)
             {
-                throw new ArgumentOutOfRangeException(nameof(timestamp), $"The value {timestamp} specifies the time in the future");
+                if (_adjustAfterAge)
+                {
+                    timestamp = DateTime.Now;
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException(nameof(timestamp), $"The value {timestamp} specifies the time in the future");
+                }
             }
             if (timestamp < DateTime.Now.Subtract(p.MaxAfterAge()))
             {
-                throw new ArgumentOutOfRangeException(nameof(timestamp), $"The value {timestamp} specifies the time to far in the past. Timestamp must be greater then {DateTime.Now.Subtract(p.MaxAfterAge())}");
+                if (_adjustAfterAge)
+                {
+                    timestamp = DateTime.Now.Subtract(p.MaxAfterAge());
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException(nameof(timestamp), $"The value {timestamp} specifies the time to far in the past. Timestamp must be greater then {DateTime.Now.Subtract(p.MaxAfterAge())}");
+                }
             }
             p.SetLastTimestampBeforeDisconnect(timestamp);
         }
@@ -206,7 +242,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             }
             foreach (var producer in _producers)
             {
-                if (producer.LastTimestampBeforeDisconnect != DateTime.MinValue && producer.LastTimestampBeforeDisconnect < DateTime.Now.Subtract(producer.MaxAfterAge()))
+                if (!_adjustAfterAge && producer.LastTimestampBeforeDisconnect != DateTime.MinValue && producer.LastTimestampBeforeDisconnect < DateTime.Now.Subtract(producer.MaxAfterAge()))
                 {
                     var err = $"Recovery timestamp for producer {producer} is too far in the past. TimeStamp={producer.LastTimestampBeforeDisconnect}";
                     throw new InvalidOperationException(err);
@@ -231,9 +267,12 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             }
             else
             {
-                var p = (Producer)Get(id);
-                p.IgnoreRecovery = true;
-                p.SetProducerDown(false);
+                var p = (Producer) Get(id);
+                if (p != null)
+                {
+                    p.IgnoreRecovery = true;
+                    p.SetProducerDown(false);
+                }
             }
         }
 
@@ -243,7 +282,33 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// <returns>The <see cref="IProducer"/> instance</returns>
         public static IProducer GetUnknownProducer()
         {
-            return new Producer(id: SdkInfo.UnknownProducerId, name: "Unknown", description: "Unknown producer", apiUrl: "unknown", active: true, maxInactivitySeconds: 20, maxRecoveryTime: 3600, scope: "live|prematch|virtual");
+            return new Producer(id: SdkInfo.UnknownProducerId, name: "Unknown", description: "Unknown producer", apiUrl: "unknown", active: true, maxInactivitySeconds: 20, maxRecoveryTime: 3600, scope: "live|prematch|virtual", statefulRecoveryWindowInMinutes: 100);
+        }
+
+        /// <summary>
+        /// Dispatches the <code>RecoveryInitiated</code>
+        /// </summary>
+        /// <param name="eventArgs">Event arguments</param>
+        public void InvokeRecoveryInitiated(RecoveryInitiatedEventArgs eventArgs)
+        {
+            if (RecoveryInitiated == null)
+            {
+                Log.LogDebug("Cannot invoke RecoveryInitiated because no event listeners are attached to associated event handler.");
+                return;
+            }
+
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                RecoveryInitiated(this, eventArgs);
+                stopwatch.Stop();
+                Log.LogInformation($"Successfully called RecoveryInitiated event. Duration: {stopwatch.ElapsedMilliseconds} ms.");
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                Log.LogWarning($"Event handler throw an exception while invoking RecoveryInitiated. Exception: {ex.Message}", ex);
+            }
         }
     }
 }

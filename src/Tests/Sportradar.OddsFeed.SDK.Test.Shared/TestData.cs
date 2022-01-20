@@ -25,7 +25,7 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
 
         public static readonly int BookmakerId = 1;
         public static readonly string AccessToken = "token";
-        public static readonly string VirtualHost = "/virtualhost/1";
+        public static readonly string VirtualHost = "/virtualhost";
 
         public static readonly URN SportId = URN.Parse("sr:sport:1");
         public static readonly URN CategoryId = URN.Parse("sr:category:1");
@@ -37,9 +37,9 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
         public static readonly URN SimpleTournamentId11111 = URN.Parse("sr:simple_tournament:11111");
 
         public static readonly CultureInfo Culture = new CultureInfo("en");
-        public static List<CultureInfo> Cultures => Cultures3;
-        public static readonly List<CultureInfo> Cultures3 = new List<CultureInfo>(new[] { new CultureInfo("en"), new CultureInfo("de"), new CultureInfo("hu") });
-        public static readonly List<CultureInfo> Cultures4 = new List<CultureInfo>(new[] { new CultureInfo("en"), new CultureInfo("de"), new CultureInfo("hu") , new CultureInfo("nl") });
+        public static IReadOnlyList<CultureInfo> Cultures => Cultures3;
+        public static readonly IReadOnlyList<CultureInfo> Cultures3 = new List<CultureInfo>(new[] { new CultureInfo("en"), new CultureInfo("de"), new CultureInfo("hu") });
+        public static readonly IReadOnlyList<CultureInfo> Cultures4 = new List<CultureInfo>(new[] { new CultureInfo("en"), new CultureInfo("de"), new CultureInfo("hu") , new CultureInfo("nl") });
 
 
         public static readonly CultureInfo CultureNl = new CultureInfo("nl");
@@ -62,8 +62,6 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
             }
 
             var date = new DateTime?();
-            List<TeamCompetitorCI> competitors = null;
-            TeamCompetitorCI comp = null;
             RoundCI round = null;
             SeasonCI season = null;
 
@@ -81,9 +79,6 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
                 Task.Run(async () =>
                          {
                              date = await ci.GetScheduledAsync();
-                             //competitors = (await ci.GetCompetitorsIdsAsync(checkCulture)).ToList();
-                             // ReSharper disable once AssignNullToNotNullAttribute
-                             //comp = competitors.FirstOrDefault();
                              round = await ci.GetTournamentRoundAsync(checkCulture);
                              season = await ci.GetSeasonAsync(checkCulture);
                          }).GetAwaiter().GetResult();
@@ -91,23 +86,6 @@ namespace Sportradar.OddsFeed.SDK.Test.Shared
                 Debug.Assert(date != null, "date != null");
                 Assert.AreEqual(new DateTime(2016, 08, 10), new DateTime(date.Value.Year, date.Value.Month, date.Value.Day));
 
-                //Assert.AreEqual(2, competitors.Count);
-
-                //TODO - this was removed
-                if (comp != null)
-                {
-                    Assert.AreEqual("sr:competitor:66390", comp.Id.ToString());
-                    Assert.AreEqual(@"Pericos de Puebla", comp.GetName(culture));
-                    if (Equals(culture, Culture))
-                    {
-                        Assert.AreEqual("Mexico", comp.GetCountry(culture));
-                        Assert.AreEqual("Mexican League 2016", season.Names[culture]);
-                    }
-                    if (culture.TwoLetterISOLanguageName != "de")
-                    {
-                        Assert.AreNotEqual(comp.GetCountry(culture), comp.GetCountry(new CultureInfo("de")));
-                    }
-                }
                 Assert.IsTrue(string.IsNullOrEmpty(round.GetName(culture)));
 
                 Assert.IsTrue(Math.Max(ci.LoadedSummaries.Count, ci.LoadedFixtures.Count) >= season.Names.Count);

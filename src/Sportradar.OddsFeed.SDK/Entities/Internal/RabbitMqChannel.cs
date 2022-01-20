@@ -57,7 +57,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// </summary>
         public event EventHandler<BasicDeliverEventArgs> Received;
 
+        /// <summary>
+        /// The message interest associated by the channel using this instance
+        /// </summary>
+        private MessageInterest _interest;
+
         private List<string> _routingKeys;
+
+        private DateTime _channelStarted;
 
         private DateTime _lastMessageReceived;
 
@@ -67,6 +74,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         private readonly ITimer _timer;
 
         private readonly TimeSpan _maxTimeBetweenMessages;
+
+        private readonly string _accessToken;
 
         /// <summary>
         /// The timer semaphore slim used reduce concurrency within timer calls
@@ -79,24 +88,28 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// <param name="channelFactory">A <see cref="IChannelFactory"/> used to construct the <see cref="IModel"/> representing Rabbit MQ channel.</param>
         /// <param name="timer">Timer used to check if there is connection</param>
         /// <param name="maxTimeBetweenMessages">Max timeout between messages to check if connection is ok</param>
-        public RabbitMqChannel(IChannelFactory channelFactory, ITimer timer, TimeSpan maxTimeBetweenMessages)
+        /// <param name="accessToken">The access token to filter from logs</param>
+        public RabbitMqChannel(IChannelFactory channelFactory, ITimer timer, TimeSpan maxTimeBetweenMessages, string accessToken)
         {
             Guard.Argument(channelFactory, nameof(channelFactory)).NotNull();
 
             _channelFactory = channelFactory;
             _routingKeys = new List<string>();
+            _channelStarted = DateTime.MinValue;
             _lastMessageReceived = DateTime.MinValue;
 
             _timer = timer;
             _maxTimeBetweenMessages = maxTimeBetweenMessages;
+            _accessToken = accessToken;
             _timer.Elapsed += OnTimerElapsed;
         }
 
         /// <summary>
         /// Opens the current channel and binds the created queue to provided routing keys
         /// </summary>
+        /// <param name="interest">The <see cref="MessageInterest"/> of the session using this instance</param>
         /// <param name="routingKeys">A <see cref="IEnumerable{String}"/> specifying the routing keys of the constructed queue.</param>
-        public void Open(IEnumerable<string> routingKeys)
+        public void Open(MessageInterest interest, IEnumerable<string> routingKeys)
         {
             if (Interlocked.CompareExchange(ref _isOpened, 1, 0) != 0)
             {
@@ -104,6 +117,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                 throw new InvalidOperationException("The instance is already opened");
             }
 
+            _interest = interest;
             _routingKeys = routingKeys.ToList();
             if (_routingKeys.IsNullOrEmpty())
             {
@@ -128,7 +142,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
             DetachEvents();
 
             _timer.Stop();
-            _timerSemaphoreSlim.Release();
+            _timerSemaphoreSlim.ReleaseSafe();
             _timerSemaphoreSlim.Dispose();
         }
 
@@ -145,19 +159,21 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
 
         private void ConsumerOnShutdown(object sender, ShutdownEventArgs shutdownEventArgs)
         {
+            var reason = _consumer.ShutdownReason == null ? string.Empty : SdkInfo.ClearSensitiveData(_consumer.ShutdownReason.ToString(), _accessToken);
             ExecutionLog.LogInformation($"The consumer {string.Join(",", _consumer.ConsumerTags)} is shutdown.");
         }
 
         private void ChannelOnModelShutdown(object sender, ShutdownEventArgs shutdownEventArgs)
         {
-            ExecutionLog.LogInformation($"The channel with channelNumber {_channel.ChannelNumber} is shutdown.");
+            var reason = _channel.CloseReason == null ? string.Empty : SdkInfo.ClearSensitiveData(_channel.CloseReason.ToString(), _accessToken);
+            ExecutionLog.LogInformation($"The channel with channelNumber {_channel.ChannelNumber} is shutdown. Reason={reason}");
         }
 
         private void CreateAndAttachEvents()
         {
             ExecutionLog.LogInformation("Opening the channel ...");
             _channel = _channelFactory.CreateChannel();
-            ExecutionLog.LogInformation($"Channel opened with channelNumber: {_channel.ChannelNumber}");
+            ExecutionLog.LogInformation($"Channel opened with channelNumber: {_channel.ChannelNumber}. MaxAllowedTimeBetweenMessages={_maxTimeBetweenMessages.TotalSeconds}s.");
             var declareResult = _channel.QueueDeclare();
 
             foreach (var routingKey in _routingKeys)
@@ -165,14 +181,16 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                 ExecutionLog.LogInformation($"Binding queue={declareResult.QueueName} with routingKey={routingKey}");
                 _channel.QueueBind(declareResult.QueueName, "unifiedfeed", routingKey);
             }
-
-            _channel.ModelShutdown += ChannelOnModelShutdown;
+            var interestName = _interest == null ? "system" : _interest.Name;
             _consumer = new EventingBasicConsumer(_channel);
+            var consumerTag = $"UfSdk-NetStd|{SdkInfo.GetVersion()}|{interestName}|{_channel.ChannelNumber}|{DateTime.Now:yyyyMMdd-HHmmss}";
             _consumer.Received += ConsumerOnDataReceived;
             _consumer.Shutdown += ConsumerOnShutdown;
-            _channel.BasicConsume(declareResult.QueueName, true, _consumer);
+            _channel.BasicConsume(declareResult.QueueName, true, consumerTag, _consumer);
+            _channel.ModelShutdown += ChannelOnModelShutdown;
 
-            _lastMessageReceived = DateTime.Now;
+            _lastMessageReceived = DateTime.MinValue;
+            _channelStarted = DateTime.Now;
         }
 
         private void DetachEvents()
@@ -190,6 +208,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                 _channel.Dispose();
                 _channel = null;
             }
+            
+            _channelStarted = DateTime.MinValue;
         }
 
         private void OnTimerElapsed(object sender, EventArgs e)
@@ -205,41 +225,59 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         private async Task OnTimerElapsedAsync()
         {
             await _timerSemaphoreSlim.WaitAsync().ConfigureAwait(false);
+
             if (IsOpened)
             {
                 try
                 {
                     if (_channel == null)
                     {
+                        ExecutionLog.LogInformation("Creating connection channel and attaching events ...");
                         CreateAndAttachEvents();
                     }
 
-                    if(_channelFactory.ConnectionCreated > _lastMessageReceived)
+                    // it means, the connection was reset in between
+                    if(_channelFactory.ConnectionCreated > _channelStarted)
                     {
-                        // it means, the connection was reseted in between
+                        ExecutionLog.LogInformation("Recreating connection channel and attaching events ...");
                         DetachEvents();
                         CreateAndAttachEvents();
                     }
 
+                    // no messages arrived in last _maxTimeBetweenMessages seconds, from the start of the channel
+                    var channelStartedDiff = DateTime.Now - _channelStarted;
+                    if (_lastMessageReceived == DateTime.MinValue && _channelStarted > DateTime.MinValue && channelStartedDiff > _maxTimeBetweenMessages)
+                    {
+                        var isOpen = _channelFactory.IsConnectionOpen() ? "s" : string.Empty;
+                        ExecutionLog.LogWarning($"There were no message{isOpen} in more then {_maxTimeBetweenMessages.TotalSeconds}s for the channel with channelNumber: {_channel?.ChannelNumber}. Last message arrived: {_lastMessageReceived}. Recreating channel.");
+                        DetachEvents();
+                        CreateAndAttachEvents();
+                    }
+
+                    // we have received messages in the past, but not in last _maxTimeBetweenMessages seconds
                     var lastMessageDiff = DateTime.Now - _lastMessageReceived;
                     if (_lastMessageReceived > DateTime.MinValue && lastMessageDiff > _maxTimeBetweenMessages)
                     {
                         var isOpen = _channelFactory.IsConnectionOpen() ? "s" : string.Empty;
                         ExecutionLog.LogWarning($"There were no message{isOpen} in more then {_maxTimeBetweenMessages.TotalSeconds}s for the channel with channelNumber: {_channel?.ChannelNumber}. Last message arrived: {_lastMessageReceived}");
+
                         DetachEvents();
-                        ExecutionLog.LogInformation($"Resetting connection for the channel with channelNumber: {_channel?.ChannelNumber}");
-                        _channelFactory.ResetConnection();
-                        ExecutionLog.LogInformation($"Resetting connection finished for the channel with channelNumber: {_channel?.ChannelNumber}");
+                        if (_channelFactory.ConnectionCreated < _channelStarted)
+                        {
+                            ExecutionLog.LogInformation($"Resetting connection for the channel with channelNumber: {_channel?.ChannelNumber}");
+                            _channelFactory.ResetConnection();
+                            ExecutionLog.LogInformation($"Resetting connection finished for the channel with channelNumber: {_channel?.ChannelNumber}");
+                        }
                         CreateAndAttachEvents();
                     }
                 }
                 catch (Exception e)
                 {
-                    ExecutionLog.LogWarning("Error checking connection: " + e.Message);
+                    ExecutionLog.LogWarning($"Error checking connection for channelNumber {_channel?.ChannelNumber}: " + e.Message);
                 }
             }
             
-            _timerSemaphoreSlim.Release();
+            _timerSemaphoreSlim.ReleaseSafe();
         }
     }
 }

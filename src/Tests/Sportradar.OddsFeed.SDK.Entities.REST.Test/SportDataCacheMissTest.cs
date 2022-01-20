@@ -4,6 +4,7 @@
 using System.Linq;
 using System.Runtime.Caching;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching;
 using Sportradar.OddsFeed.SDK.Messages;
@@ -39,7 +40,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             _dataRouterManager = new TestDataRouterManager(_cacheManager);
 
             _timer = new TestTimer(false);
-            _sportEventCache = new SportEventCache(_memoryCache, _dataRouterManager, new SportEventCacheItemFactory(_dataRouterManager, new SemaphorePool(5), TestData.Cultures.First(), new MemoryCache("FixtureTimestampCache")), _timer, TestData.Cultures, _cacheManager);
+            _sportEventCache = new SportEventCache(_memoryCache, _dataRouterManager, new SportEventCacheItemFactory(_dataRouterManager, new SemaphorePool(5, ExceptionHandlingStrategy.THROW), TestData.Cultures.First(), new MemoryCache("FixtureTimestampCache")), _timer, TestData.Cultures, _cacheManager);
             _sportDataCache = new SportDataCache(_dataRouterManager, _timer, TestData.Cultures, _sportEventCache, _cacheManager);
         }
 
@@ -63,7 +64,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             Assert.AreEqual(TestData.CacheSportCount, _sportDataCache.Sports.Count);
             Assert.AreEqual(TestData.CacheCategoryCountPlus, _sportDataCache.Categories.Count);
             Assert.AreEqual(TestData.CacheTournamentCount, _sportEventCache.Cache.Count(c => c.Key.Contains("tournament") || c.Key.Contains("season")));
-            Assert.AreEqual(0, _sportEventCache.SpecialTournaments.Count());
+            Assert.AreEqual(0, _sportEventCache.SpecialTournaments.Count);
 
             var data01 = _sportDataCache.GetSportForTournamentAsync(nonExistingTournamentUrn, TestData.Cultures).Result;
             Assert.IsNull(data01);
@@ -74,7 +75,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             Assert.AreEqual(TestData.CacheSportCount, _sportDataCache.Sports.Count);
             Assert.AreEqual(TestData.CacheCategoryCountPlus, _sportDataCache.Categories.Count);
             Assert.AreEqual(TestData.CacheTournamentCount + 1, _sportEventCache.Cache.Count(c => c.Key.Contains("tournament") || c.Key.Contains("season")));
-            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count());
+            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count);
 
             data01 = _sportDataCache.GetSportForTournamentAsync(nonExistingTournamentUrn, TestData.Cultures).Result;
             Assert.IsNull(data01);
@@ -85,7 +86,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             Assert.AreEqual(TestData.CacheSportCount, _sportDataCache.Sports.Count);
             Assert.AreEqual(TestData.CacheCategoryCountPlus, _sportDataCache.Categories.Count);
             Assert.AreEqual(TestData.CacheTournamentCount + 1, _sportEventCache.Cache.Count(c => c.Key.Contains("tournament") || c.Key.Contains("season")));
-            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count());
+            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count);
 
             Assert.IsNotNull(sports);
             Assert.IsNull(data01);
@@ -110,7 +111,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             Assert.AreEqual(TestData.CacheSportCount, _sportDataCache.Sports.Count);
             Assert.AreEqual(TestData.CacheCategoryCountPlus, _sportDataCache.Categories.Count);
             Assert.AreEqual(TestData.CacheTournamentCount, _sportEventCache.Cache.Count(c => c.Key.Contains("tournament") || c.Key.Contains("season")));
-            Assert.AreEqual(0, _sportEventCache.SpecialTournaments.Count());
+            Assert.AreEqual(0, _sportEventCache.SpecialTournaments.Count);
 
             var data01 = _sportDataCache.GetSportForTournamentAsync(TestData.SimpleTournamentId11111, TestData.Cultures).Result;
             Assert.IsNotNull(data01);
@@ -121,7 +122,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             Assert.AreEqual(TestData.CacheSportCount + 1, _sportDataCache.Sports.Count);
             Assert.AreEqual(TestData.CacheCategoryCountPlus + 1, _sportDataCache.Categories.Count);
             Assert.AreEqual(TestData.CacheTournamentCount + 1, _sportEventCache.Cache.Count(c => c.Key.Contains("tournament") || c.Key.Contains("season")));
-            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count());
+            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count);
 
             data01 = _sportDataCache.GetSportForTournamentAsync(TestData.SimpleTournamentId11111, TestData.Cultures).Result;
             Assert.IsNotNull(data01);
@@ -132,7 +133,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Test
             Assert.AreEqual(TestData.CacheSportCount + 1, _sportDataCache.Sports.Count);
             Assert.AreEqual(TestData.CacheCategoryCountPlus + 1, _sportDataCache.Categories.Count);
             Assert.AreEqual(TestData.CacheTournamentCount + 1, _sportEventCache.Cache.Count(c => c.Key.Contains("tournament") || c.Key.Contains("season")));
-            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count());
+            Assert.AreEqual(1, _sportEventCache.SpecialTournaments.Count);
 
             Assert.IsNotNull(sports);
             Assert.IsNotNull(data01);

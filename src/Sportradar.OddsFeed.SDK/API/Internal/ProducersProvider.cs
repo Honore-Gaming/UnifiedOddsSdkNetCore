@@ -65,8 +65,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             Guard.Argument(message, nameof(message)).NotNull();
             Guard.Argument(message.producer.Length).Positive();
 
-            return message.producer.Select(producer => new Producer(
-                                                                    (int) producer.id,
+            return message.producer.Select(producer => new Producer((int) producer.id,
                                                                     producer.name,
                                                                     producer.description,
                                                                     _config.Environment != SdkEnvironment.Custom
@@ -74,17 +73,18 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                                                                         : ReplaceProducerApiUrl(producer.api_url),
                                                                     producer.active,
                                                                     _config.InactivitySeconds,
-                                                                    producer.stateful_recovery_window_in_minutes,
-                                                                    producer.scope)).Cast<IProducer>().ToList();
+                                                                    _config.MaxRecoveryTime,
+                                                                    producer.scope,
+                                                                    producer.stateful_recovery_window_in_minutes)).Cast<IProducer>().ToList();
         }
 
         private string ReplaceProducerApiUrl(string url)
         {
-            if (url.Contains(SdkInfo.IntegrationApiHost))
+            if (url.Contains(EnvironmentManager.GetApiHost(SdkEnvironment.Integration)))
             {
-                return url.Replace(SdkInfo.IntegrationApiHost, _config.ApiHost);
+                return url.Replace(EnvironmentManager.GetApiHost(SdkEnvironment.Integration), _config.ApiHost);
             }
-            return url.Replace(SdkInfo.ProductionApiHost, _config.ApiHost);
+            return url.Replace(EnvironmentManager.GetApiHost(SdkEnvironment.Production), _config.ApiHost);
         }
     }
 }

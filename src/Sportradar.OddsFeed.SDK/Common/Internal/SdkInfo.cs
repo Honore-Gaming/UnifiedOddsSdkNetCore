@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using Castle.Core.Internal;
 using Microsoft.Extensions.Logging;
 using Sportradar.OddsFeed.SDK.Entities.REST.Market;
 using Sportradar.OddsFeed.SDK.Messages;
@@ -18,33 +19,10 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
     internal static class SdkInfo
     {
         /// <summary>
-        /// The production host
+        /// Internal sdk logger to be used within base classes - so no need in every class
         /// </summary>
-        public const string ProductionHost = "mq.betradar.com";
-        /// <summary>
-        /// The production API host
-        /// </summary>
-        public const string ProductionApiHost = "api.betradar.com";
-        /// <summary>
-        /// The integration host
-        /// </summary>
-        public const string IntegrationHost = "stgmq.betradar.com";
-        /// <summary>
-        /// The integration API host
-        /// </summary>
-        public const string IntegrationApiHost = "stgapi.betradar.com";
-        /// <summary>
-        /// The replay host
-        /// </summary>
-        public const string ReplayHost = "replaymq.betradar.com";
-        /// <summary>
-        /// The replay API host
-        /// </summary>
-        public const string ReplayApiHost = IntegrationApiHost;
-        /// <summary>
-        /// The default host port
-        /// </summary>
-        public const int DefaultHostPort = 5671;
+        public static readonly ILogger ExecutionLog = SdkLoggerFactory.GetLoggerForExecution(typeof(SdkInfo));
+
         /// <summary>
         /// The unknown producer identifier
         /// </summary>
@@ -68,7 +46,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         /// <summary>
         /// The outcometext variant value
         /// </summary>
-        public const string OutcometextVariantValue = "pre:outcometext";
+        public const string OutcomeTextVariantValue = "pre:outcometext";
         /// <summary>
         /// The free text variant value
         /// </summary>
@@ -374,6 +352,58 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
 
             var tmp = string.Join(",", specifiers.Select(s => s.Name));
             return tmp;
+        }
+
+        /// <summary>
+        /// Gets the fixed length unique identifier
+        /// </summary>
+        /// <param name="length">The length of the returned string</param>
+        /// <param name="containDash">if set to <c>true</c> [contain dash].</param>
+        public static string GetGuid(int length, bool containDash = false)
+        {
+            var g = Guid.NewGuid().ToString();
+
+            if (!containDash)
+            {
+                g = g.Replace("-", string.Empty);
+            }
+
+            if (length > 0 && length < g.Length)
+            {
+                g = g.Substring(0, length);
+            }
+
+            return g;
+        }
+
+        /// <summary>
+        /// Clear sensitive data (removes part of it)
+        /// </summary>
+        /// <param name="input">Data to clear</param>
+        /// <returns>Cleared input string</returns>
+        public static string ClearSensitiveData(string input)
+        {
+            return !string.IsNullOrEmpty(input) && input.Length > 3
+                       ? input.Substring(0, 3) + "***" + input.Substring(input.Length - 3)
+                       : input;
+        }
+
+        /// <summary>
+        /// Clear sensitive data (removes part of it) from then input text
+        /// </summary>
+        /// <param name="input">Data to clear</param>
+        /// <param name="sensitiveData">Search for this data and replace with cleared input string</param>
+        /// <returns>Cleared input string</returns>
+        public static string ClearSensitiveData(string input, string sensitiveData)
+        {
+            if (input.IsNullOrEmpty())
+            {
+                return input;
+            }
+
+            var clearedData = ClearSensitiveData(sensitiveData);
+
+            return input.Replace(sensitiveData, clearedData);
         }
     }
 }

@@ -3,11 +3,13 @@
 */
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using Dawn;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Castle.Core.Internal;
+using Microsoft.Extensions.Logging;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Exportable;
@@ -162,12 +164,20 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
         {
             get
             {
-                if (!_associatedPlayerIds.Any())
+                if (_associatedPlayerIds.IsNullOrEmpty())
                 {
                     FetchProfileIfNeeded(_primaryCulture);
                 }
                 return _associatedPlayerIds;
             }
+        }
+
+        /// <summary>
+        /// Get associated player ids if already cached (no competitor profile is fetched)
+        /// </summary>
+        public IEnumerable<URN> GetAssociatedPlayerIds()
+        {
+            return _associatedPlayerIds;
         }
 
         /// <summary>
@@ -308,6 +318,12 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
         public string ShortName => _shortName;
 
         /// <summary>
+        /// Gets the type of the root source
+        /// </summary>
+        /// <value>The root source</value>
+        public string RootSource { get; }
+
+        /// <summary>
         /// Gets the <see cref="IEnumerable{CultureInfo}"/> specifying the languages for which the current instance has translations
         /// </summary>
         /// <value>The fetched cultures</value>
@@ -340,6 +356,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
             _jerseys = new List<JerseyCI>();
             _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             _cultureCompetitorProfileFetched = new List<CultureInfo>();
+            RootSource = "CompetitorDTO";
             Merge(competitor, culture);
         }
 
@@ -365,8 +382,9 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
             _abbreviations = new Dictionary<CultureInfo, string>();
             _associatedPlayerIds = new List<URN>();
             _jerseys = new List<JerseyCI>();
-_lastTimeCompetitorProfileFetched = DateTime.MinValue;
+            _lastTimeCompetitorProfileFetched = DateTime.Now;
             _cultureCompetitorProfileFetched = new List<CultureInfo>();
+            RootSource = "CompetitorProfileDTO";
             Merge(competitor, culture);
         }
 
@@ -392,8 +410,9 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             _abbreviations = new Dictionary<CultureInfo, string>();
             _associatedPlayerIds = new List<URN>();
             _jerseys = new List<JerseyCI>();
-_lastTimeCompetitorProfileFetched = DateTime.MinValue;
+            _lastTimeCompetitorProfileFetched = DateTime.Now;
             _cultureCompetitorProfileFetched = new List<CultureInfo>();
+            RootSource = "SimpleTeamProfileDTO";
             Merge(competitor, culture);
         }
 
@@ -422,6 +441,7 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             _jerseys = new List<JerseyCI>();
             _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             _cultureCompetitorProfileFetched = new List<CultureInfo>();
+            RootSource = "PlayerCompetitorDTO";
             Merge(playerCompetitor, culture);
         }
 
@@ -435,7 +455,7 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             Names = originalCompetitorCI.Names;
             _countryNames = originalCompetitorCI._countryNames;
             _abbreviations = originalCompetitorCI._abbreviations;
-            _associatedPlayerIds = originalCompetitorCI._associatedPlayerIds;
+            _associatedPlayerIds = originalCompetitorCI._associatedPlayerIds.IsNullOrEmpty() ? new List<URN>() : originalCompetitorCI._associatedPlayerIds;
             _isVirtual = originalCompetitorCI._isVirtual;
             _referenceId = originalCompetitorCI._referenceId;
             _jerseys = originalCompetitorCI._jerseys;
@@ -468,43 +488,6 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="CompetitorCI"/> class
-        /// </summary>
-        /// <param name="exportable">A <see cref="ExportableCompetitorCI"/> containing information about the sport entity</param>
-        internal void Import(ExportableCompetitorCI exportable)
-        {
-            Names = new Dictionary<CultureInfo, string>(exportable.Name);
-            _countryNames = new Dictionary<CultureInfo, string>(exportable.CountryNames);
-            _abbreviations = new Dictionary<CultureInfo, string>(exportable.Abbreviations);
-            _associatedPlayerIds = new List<URN>(exportable.AssociatedPlayerIds.Select(URN.Parse));
-            _isVirtual = exportable.IsVirtual;
-            _referenceId = new ReferenceIdCI(exportable.ReferenceIds);
-            _jerseys = new List<JerseyCI>(exportable.Jerseys.Select(j => new JerseyCI(j)));
-            _countryCode = exportable.CountryCode;
-            _state = exportable.State;
-            _manager = exportable.Manager != null ? new ManagerCI(exportable.Manager) : null;
-            _venue = exportable.Venue != null ? new VenueCI(exportable.Venue) : null;
-            _gender = exportable.Gender;
-            _ageGroup = exportable.AgeGroup;
-            _fetchedCultures = new List<CultureInfo>(exportable.FetchedCultures);
-            _primaryCulture = exportable.PrimaryCulture;
-            _raceDriverProfile = exportable.RaceDriverProfile != null ? new RaceDriverProfileCI(exportable.RaceDriverProfile) : null;
-            _referenceId = new ReferenceIdCI(exportable.ReferenceIds);
-            _lastTimeCompetitorProfileFetched = DateTime.MinValue;
-            if (exportable.LastTimeCompetitorProfileIsFetched.HasValue)
-            {
-                _lastTimeCompetitorProfileFetched = exportable.LastTimeCompetitorProfileIsFetched.Value;
-            }
-            if (exportable.CultureCompetitorProfileFetched != null)
-            {
-                _cultureCompetitorProfileFetched = exportable.CultureCompetitorProfileFetched.ToList();
-            }
-            _sportId = exportable.SportId != null ? URN.Parse(exportable.SportId) : null;
-            _categoryId = exportable.CategoryId != null ? URN.Parse(exportable.CategoryId) : null;
-            _shortName = exportable.ShortName;
-        }
-
-        /// <summary>
         /// Merges the information from the provided <see cref="CompetitorDTO"/> into the current instance
         /// </summary>
         /// <param name="competitor">A <see cref="CompetitorDTO"/> containing information about the competitor</param>
@@ -528,10 +511,9 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             {
                 _state = competitor.State;
             }
-            if (competitor.Players != null && competitor.Players.Any())
+            if (competitor.Players != null && !competitor.Players.IsNullOrEmpty())
             {
-                _associatedPlayerIds.Clear();
-                _associatedPlayerIds.AddRange(competitor.Players.Select(s => s.Id));
+                _associatedPlayerIds = competitor.Players.Select(s => s.Id).ToList();
             }
             if (!string.IsNullOrEmpty(competitor.Gender))
             {
@@ -580,15 +562,13 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             {
                 _state = competitorProfile.Competitor.State;
             }
-            if (competitorProfile.Players != null && competitorProfile.Players.Any())
+            if (!competitorProfile.Players.IsNullOrEmpty())
             {
-                _associatedPlayerIds.Clear();
-                _associatedPlayerIds.AddRange(competitorProfile.Players.Select(s => s.Id));
+                _associatedPlayerIds = competitorProfile.Players.Select(s => s.Id).ToList();
             }
-            if (competitorProfile.Jerseys != null && competitorProfile.Jerseys.Any())
+            if (!competitorProfile.Jerseys.IsNullOrEmpty())
             {
-                _jerseys.Clear();
-                _jerseys.AddRange(competitorProfile.Jerseys.Select(s => new JerseyCI(s)));
+                _jerseys = competitorProfile.Jerseys.Select(s => new JerseyCI(s)).ToList();
             }
             if (competitorProfile.Manager != null)
             {
@@ -616,38 +596,28 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             {
                 _gender = competitorProfile.Competitor.Gender;
             }
-            
             if (!string.IsNullOrEmpty(competitorProfile.Competitor.AgeGroup))
             {
                 _ageGroup = competitorProfile.Competitor.AgeGroup;
             }
-
             if (competitorProfile.RaceDriverProfile != null)
             {
                 _raceDriverProfile = new RaceDriverProfileCI(competitorProfile.RaceDriverProfile);
             }
-            
-            if (competitorProfile.Players != null && competitorProfile.Players.Any())
-            {
-                _lastTimeCompetitorProfileFetched = DateTime.Now;
-                _cultureCompetitorProfileFetched.Add(culture);
-            }
-
             if (competitorProfile.Competitor.SportId != null)
             {
                 _sportId = competitorProfile.Competitor.SportId;
             }
-
             if (competitorProfile.Competitor.CategoryId != null)
             {
                 _categoryId = competitorProfile.Competitor.CategoryId;
             }
-
             if(!string.IsNullOrEmpty(competitorProfile.Competitor.ShortName))
             {
                 _shortName = competitorProfile.Competitor.ShortName;
             }
-
+            _lastTimeCompetitorProfileFetched = DateTime.Now;
+            _cultureCompetitorProfileFetched.Add(culture);
             ((List<CultureInfo>) _fetchedCultures).Add(culture);
         }
 
@@ -723,24 +693,40 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
                 throw new ArgumentNullException(nameof(item));
             }
 
-            foreach (var k in item.Names.Keys)
+            if (!item.Names.IsNullOrEmpty())
             {
-                Names[k] = item.Names[k];
+                foreach (var k in item.Names.Keys)
+                {
+                    Names[k] = item.Names[k];
+                }
             }
-            foreach (var k in item._countryNames.Keys)
+
+            if (!item._countryNames.IsNullOrEmpty())
             {
-                _countryNames[k] = item._countryNames[k];
+                foreach (var k in item._countryNames.Keys)
+                {
+                    _countryNames[k] = item._countryNames[k];
+                }
             }
-            foreach (var k in item._abbreviations.Keys)
+
+            if (!item._abbreviations.IsNullOrEmpty())
             {
-                _abbreviations[k] = item._abbreviations[k];
+                foreach (var k in item._abbreviations.Keys)
+                {
+                    _abbreviations[k] = item._abbreviations[k];
+                }
             }
-            _associatedPlayerIds.Clear();
-            _associatedPlayerIds.AddRange(item._associatedPlayerIds);
+            
+            if (!item._associatedPlayerIds.IsNullOrEmpty())
+            {
+                _associatedPlayerIds = item._associatedPlayerIds.ToList();
+            }
             _isVirtual = item.IsVirtual;
             _referenceId = item._referenceId ?? _referenceId;
-            _jerseys.Clear();
-            _jerseys.AddRange(item._jerseys);
+            if (item._jerseys != null && !item._jerseys.IsNullOrEmpty())
+            {
+                _jerseys = item._jerseys.ToList();
+            }
             _countryCode = item._countryCode ?? _countryCode;
             _state = item._state ?? _state;
             _manager = item._manager ?? _manager;
@@ -751,6 +737,7 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
             _referenceId = item._referenceId ?? _referenceId;
             _lastTimeCompetitorProfileFetched = item._lastTimeCompetitorProfileFetched;
             _cultureCompetitorProfileFetched = item._cultureCompetitorProfileFetched?.ToList();
+            _fetchedCultures = item._fetchedCultures;
             _sportId = item._sportId ?? _sportId;
             _categoryId = item._categoryId ?? _categoryId;
             if(!string.IsNullOrEmpty(item.ShortName))
@@ -811,40 +798,87 @@ _lastTimeCompetitorProfileFetched = DateTime.MinValue;
         protected virtual async Task<T> CreateExportableCIAsync<T>() where T : ExportableCompetitorCI, new()
         {
             var jerseysList = new List<ExportableJerseyCI>();
-            foreach (var jersey in _jerseys)
+            if (!_jerseys.IsNullOrEmpty())
             {
-                jerseysList.Add(await jersey.ExportAsync());
+                foreach (var jersey in _jerseys)
+                {
+                    jerseysList.Add(await jersey.ExportAsync());
+                }
             }
 
             var exportable = new T
-            {
-                Id = Id.ToString(),
-                Name = new ReadOnlyDictionary<CultureInfo, string>(Names),
-                CountryNames = new ReadOnlyDictionary<CultureInfo, string>(_countryNames),
-                Abbreviations = new ReadOnlyDictionary<CultureInfo, string>(_abbreviations),
-                AssociatedPlayerIds = new ReadOnlyCollection<string>(_associatedPlayerIds.Select(i => i.ToString()).ToList()),
-                IsVirtual = _isVirtual,
-                ReferenceIds = _referenceId?.ReferenceIds != null ? new ReadOnlyDictionary<string, string>((_referenceId.ReferenceIds as IDictionary<string, string>)!) : null,
-                Jerseys = new ReadOnlyCollection<ExportableJerseyCI>(jerseysList),
-                CountryCode = _countryCode,
-                State = _state,
-                Manager = _manager!= null ? await _manager.ExportAsync().ConfigureAwait(false) : null,
-                Venue = _venue != null ? await _venue.ExportAsync().ConfigureAwait(false) : null,
-                Gender = _gender,
-                AgeGroup = _ageGroup,
-                RaceDriverProfile = _raceDriverProfile != null ? await _raceDriverProfile.ExportAsync().ConfigureAwait(false) : null,
-                FetchedCultures = new ReadOnlyCollection<CultureInfo>(_fetchedCultures.ToList()),
-                PrimaryCulture = _primaryCulture,
-                LastTimeCompetitorProfileIsFetched = _lastTimeCompetitorProfileFetched > DateTime.MinValue
-                                                     ? _lastTimeCompetitorProfileFetched
-                                                     : (DateTime?) null,
-                CultureCompetitorProfileFetched = _cultureCompetitorProfileFetched,
-                SportId = _sportId?.ToString(),
-                CategoryId = _categoryId?.ToString(),
-                ShortName = _shortName
-            };
+                             {
+                                 Id = Id.ToString(),
+                                 Name = Names.IsNullOrEmpty() ? new Dictionary<CultureInfo, string>() : new Dictionary<CultureInfo, string>(Names),
+                                 CountryNames = _countryNames.IsNullOrEmpty() ? new Dictionary<CultureInfo, string>() : new Dictionary<CultureInfo, string>(_countryNames),
+                                 Abbreviations = _abbreviations.IsNullOrEmpty() ? new Dictionary<CultureInfo, string>() : new Dictionary<CultureInfo, string>(_abbreviations),
+                                 AssociatedPlayerIds = _associatedPlayerIds.IsNullOrEmpty() ? new List<string>() : new List<string>(_associatedPlayerIds.Select(i => i.ToString()).ToList()),
+                                 IsVirtual = _isVirtual,
+                                 ReferenceIds = _referenceId?.ReferenceIds == null ? new Dictionary<string, string>() : new Dictionary<string, string>(_referenceId.ReferenceIds),
+                                 Jerseys = jerseysList.IsNullOrEmpty() ? new List<ExportableJerseyCI>() : new List<ExportableJerseyCI>(jerseysList),
+                                 CountryCode = _countryCode,
+                                 State = _state,
+                                 Manager = _manager != null ? await _manager.ExportAsync().ConfigureAwait(false) : null,
+                                 Venue = _venue != null ? await _venue.ExportAsync().ConfigureAwait(false) : null,
+                                 Gender = _gender,
+                                 AgeGroup = _ageGroup,
+                                 RaceDriverProfile = _raceDriverProfile != null ? await _raceDriverProfile.ExportAsync().ConfigureAwait(false) : null,
+                                 FetchedCultures = _fetchedCultures.IsNullOrEmpty() ? new List<CultureInfo>() : new List<CultureInfo>(_fetchedCultures.ToList()),
+                                 PrimaryCulture = _primaryCulture,
+                                 LastTimeCompetitorProfileIsFetched = _lastTimeCompetitorProfileFetched > DateTime.MinValue
+                                                                          ? _lastTimeCompetitorProfileFetched
+                                                                          : (DateTime?) null,
+                                 CultureCompetitorProfileFetched = _cultureCompetitorProfileFetched,
+                                 SportId = _sportId?.ToString(),
+                                 CategoryId = _categoryId?.ToString(),
+                                 ShortName = _shortName
+                             };
 
             return exportable;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="CompetitorCI"/> class
+        /// </summary>
+        /// <param name="exportable">A <see cref="ExportableCompetitorCI"/> containing information about the sport entity</param>
+        internal void Import(ExportableCompetitorCI exportable)
+        {
+            try
+            {
+                Names = exportable.Name.IsNullOrEmpty() ? null : new Dictionary<CultureInfo, string>(exportable.Name);
+                _countryNames = exportable.CountryNames.IsNullOrEmpty() ? null : new Dictionary<CultureInfo, string>(exportable.CountryNames);
+                _abbreviations = exportable.Abbreviations.IsNullOrEmpty() ? null : new Dictionary<CultureInfo, string>(exportable.Abbreviations);
+                _associatedPlayerIds = exportable.AssociatedPlayerIds.IsNullOrEmpty() ? new List<URN>() : new List<URN>(exportable.AssociatedPlayerIds.Select(URN.Parse));
+                _isVirtual = exportable.IsVirtual;
+                _referenceId = exportable.ReferenceIds.IsNullOrEmpty() ? null : new ReferenceIdCI(exportable.ReferenceIds);
+                _jerseys = exportable.Jerseys.IsNullOrEmpty() ? null : new List<JerseyCI>(exportable.Jerseys.Select(j => new JerseyCI(j)));
+                _countryCode = exportable.CountryCode;
+                _state = exportable.State;
+                _manager = exportable.Manager != null ? new ManagerCI(exportable.Manager) : null;
+                _venue = exportable.Venue != null ? new VenueCI(exportable.Venue) : null;
+                _gender = exportable.Gender;
+                _ageGroup = exportable.AgeGroup;
+                _fetchedCultures = exportable.FetchedCultures.IsNullOrEmpty() ? new List<CultureInfo>() : new List<CultureInfo>(exportable.FetchedCultures);
+                _primaryCulture = exportable.PrimaryCulture;
+                _raceDriverProfile = exportable.RaceDriverProfile == null ? null : new RaceDriverProfileCI(exportable.RaceDriverProfile);
+                _referenceId = exportable.ReferenceIds.IsNullOrEmpty() ? null : new ReferenceIdCI(exportable.ReferenceIds);
+                _lastTimeCompetitorProfileFetched = DateTime.MinValue;
+                if (exportable.LastTimeCompetitorProfileIsFetched.HasValue)
+                {
+                    _lastTimeCompetitorProfileFetched = exportable.LastTimeCompetitorProfileIsFetched.Value;
+                }
+                if (exportable.CultureCompetitorProfileFetched != null)
+                {
+                    _cultureCompetitorProfileFetched = exportable.CultureCompetitorProfileFetched.ToList();
+                }
+                _sportId = exportable.SportId != null ? URN.Parse(exportable.SportId) : null;
+                _categoryId = exportable.CategoryId != null ? URN.Parse(exportable.CategoryId) : null;
+                _shortName = exportable.ShortName;
+            }
+            catch (Exception e)
+            {
+                SdkLoggerFactory.GetLoggerForExecution(typeof(CompetitorCI)).LogError(e, "Importing CompetitorCI");
+            }
         }
 
         /// <summary>

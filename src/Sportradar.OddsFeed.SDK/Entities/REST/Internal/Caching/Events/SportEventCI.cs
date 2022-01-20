@@ -317,13 +317,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
             {
                 return;
             }
-
+            
             var id = $"{Id}_Summary";
             SemaphoreSlim semaphore = null;
+            Exception initialException = null;
             try
             {
                 // acquire the lock
-                semaphore = await SemaphorePool.Acquire(id).ConfigureAwait(false);
+                semaphore = await SemaphorePool.AcquireAsync(id).ConfigureAwait(false);
                 await semaphore.WaitAsync().ConfigureAwait(false);
 
                 // make sure there is still some data missing and was not fetched while waiting to acquire the lock
@@ -359,7 +360,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
             }
             catch (CommunicationException ce)
             {
-                if (ce.Message.Contains("NotFound")) // especially for tournaments that dont have summary
+                if (this is TournamentInfoCI && ce.Message.Contains("NotFound")) // especially for tournaments that do not have summary
                 {
                     LoadedSummaries.AddRange(missingCultures);
                     ExecutionLog.LogWarning($"Fetching summary for eventId={Id} for languages [{string.Join(",", missingCultures)}] COMPLETED WITH NOT_FOUND.");
@@ -367,26 +368,25 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
                 else
                 {
                     ExecutionLog.LogWarning($"Fetching summary for eventId={Id} for languages [{string.Join(",", missingCultures)}] COMPLETED WITH ERROR.");
-                    if (((DataRouterManager)DataRouterManager).ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
-                    {
-                        throw;
-                    }
+                    initialException = ce;
                 }
             }
             catch (Exception ex)
             {
                 ExecutionLog.LogError($"Fetching summary for eventId={Id} for languages [{string.Join(",", missingCultures)}] COMPLETED WITH EX.", ex);
-                if (DataRouterManager is DataRouterManager drm && drm.ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
-                {
-                    throw;
-                }
+                initialException = ex;
             }
             finally
             {
                 // release semaphore
                 // ReSharper disable once PossibleNullReferenceException
-                semaphore.Release();
+                semaphore.ReleaseSafe();
                 SemaphorePool.Release(id);
+            }
+
+            if (initialException != null && ((DataRouterManager) DataRouterManager).ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
+            {
+                throw initialException;
             }
         }
 
@@ -406,13 +406,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
             {
                 return;
             }
-
+            
             var id = $"{Id}_Fixture";
             SemaphoreSlim semaphore = null;
+            Exception potentialException = null;
             try
             {
                 // acquire the lock
-                semaphore = await SemaphorePool.Acquire(id).ConfigureAwait(false);
+                semaphore = await SemaphorePool.AcquireAsync(id).ConfigureAwait(false);
                 await semaphore.WaitAsync().ConfigureAwait(false);
 
                 // make sure there is still some data missing and was not fetched while waiting to acquire the lock
@@ -441,7 +442,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
             }
             catch (CommunicationException ce)
             {
-                if (ce.Message.Contains("NotFound"))
+                if (this is TournamentInfoCI && ce.Message.Contains("NotFound"))
                 {
                     LoadedFixtures.AddRange(missingCultures);
                     ExecutionLog.LogWarning($"Fetching fixtures for eventId={Id} for languages [{string.Join(",", missingCultures)}] COMPLETED WITH NOT_FOUND.");
@@ -449,26 +450,25 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
                 else
                 {
                     ExecutionLog.LogWarning($"Fetching fixtures for eventId={Id} for languages [{string.Join(",", missingCultures)}] COMPLETED WITH ERROR.");
-                    if (((DataRouterManager)DataRouterManager).ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
-                    {
-                        throw;
-                    }
+                    potentialException = ce;
                 }
             }
             catch (Exception ex)
             {
                 ExecutionLog.LogError($"Fetching fixtures for eventId={Id} for languages [{string.Join(",", missingCultures)}] COMPLETED WITH EX.", ex);
-                if (((DataRouterManager)DataRouterManager).ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
-                {
-                    throw;
-                }
+                potentialException = ex;
             }
             finally
             {
                 // release semaphore
                 // ReSharper disable once PossibleNullReferenceException
-                semaphore.Release();
+                semaphore.ReleaseSafe();
                 SemaphorePool.Release(id);
+            }
+
+            if (potentialException != null && ((DataRouterManager) DataRouterManager).ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
+            {
+                throw potentialException;
             }
         }
 
@@ -497,7 +497,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events
         {
             Guard.Argument(dto, nameof(dto)).NotNull();
             Guard.Argument(culture, nameof(culture)).NotNull();
-
+            
             lock (MergeLock)
             {
                 Names[culture] = dto.Name;

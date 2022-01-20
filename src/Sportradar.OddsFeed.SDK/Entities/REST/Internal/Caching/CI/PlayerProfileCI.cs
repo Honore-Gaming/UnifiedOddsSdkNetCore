@@ -3,11 +3,11 @@
 */
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using Dawn;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Castle.Core.Internal;
 using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Exportable;
@@ -131,7 +131,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
         /// </summary>
         public URN CompetitorId => _competitorId;
         
-
         /// <summary>
         /// Initializes a new instance of the <see cref="PlayerProfileCI"/> class
         /// </summary>
@@ -153,6 +152,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
 
             Names = new Dictionary<CultureInfo, string>();
             _nationalities = new Dictionary<CultureInfo, string>();
+
             Merge(profile, competitorId, culture);
         }
 
@@ -177,6 +177,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
 
             Names = new Dictionary<CultureInfo, string>();
             _nationalities = new Dictionary<CultureInfo, string>();
+
             Merge(playerCompetitor, competitorId, culture);
         }
 
@@ -199,12 +200,13 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
             {
                 throw new ArgumentNullException(nameof(exportable));
             }
-
-            _fetchedCultures = new List<CultureInfo>(exportable.Name.Keys);
-            _primaryCulture = exportable.Name.Keys.First();
-
-            Names = new Dictionary<CultureInfo, string>(exportable.Name);
-            _nationalities = new Dictionary<CultureInfo, string>(exportable.Nationalities);
+            Names = exportable.Name.IsNullOrEmpty() ? new Dictionary<CultureInfo, string>() : new Dictionary<CultureInfo, string>(exportable.Name);
+            if (!Names.IsNullOrEmpty())
+            {
+                _fetchedCultures = new List<CultureInfo>(exportable.Name.Keys);
+                _primaryCulture = exportable.Name.Keys.First();
+            }
+            _nationalities = exportable.Nationalities.IsNullOrEmpty() ? new Dictionary<CultureInfo, string>() : new Dictionary<CultureInfo, string>(exportable.Nationalities);
             _type = exportable.Type;
             _dateOfBirth = exportable.DateOfBirth;
             _height = exportable.Height;
@@ -276,37 +278,6 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
         }
 
         /// <summary>
-        /// Merges the specified <see cref="PlayerProfileCI"/> into instance
-        /// </summary>
-        /// <param name="item">The <see cref="PlayerProfileCI"/> used to merge into instance</param>
-        internal void Merge(PlayerProfileCI item)
-        {
-            if (item == null)
-            {
-                throw new ArgumentNullException(nameof(item));
-            }
-
-            foreach (var k in item.Names.Keys)
-            {
-                Names[k] = item.Names[k];
-            }
-            foreach (var k in item._nationalities.Keys)
-            {
-                _nationalities[k] = item._nationalities[k];
-            }
-            _type = item._type ?? _type;
-            _dateOfBirth = item._dateOfBirth ?? _dateOfBirth;
-            _height = item._height ?? _height;
-            _weight = item._weight ?? _weight;
-            _abbreviation = item._abbreviation ?? _abbreviation;
-            _gender = item._gender ?? _gender;
-            CountryCode = item.CountryCode ?? CountryCode;
-            FullName = item.FullName ?? FullName;
-            Nickname = item.Nickname ?? Nickname;
-            _competitorId = item._competitorId ?? _competitorId;
-        }
-
-        /// <summary>
         /// Gets the name of the player in the specified language
         /// </summary>
         /// <param name="culture">A <see cref="CultureInfo"/> specifying the language of the returned name</param>
@@ -374,8 +345,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI
             return Task.FromResult<ExportableCI>(new ExportablePlayerProfileCI
             {
                 Id = Id.ToString(),
-                Name = new ReadOnlyDictionary<CultureInfo, string>(Names),
-                Nationalities = new ReadOnlyDictionary<CultureInfo, string>(_nationalities),
+                Name = new Dictionary<CultureInfo, string>(Names),
+                Nationalities =  _nationalities.IsNullOrEmpty() ? null : new Dictionary<CultureInfo, string>(_nationalities),
                 Type = _type,
                 DateOfBirth = _dateOfBirth,
                 Height = _height,

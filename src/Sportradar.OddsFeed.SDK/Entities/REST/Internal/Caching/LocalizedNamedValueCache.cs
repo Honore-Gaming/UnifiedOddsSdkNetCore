@@ -14,6 +14,7 @@ using App.Metrics.Timer;
 using Microsoft.Extensions.Logging;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Exceptions;
+using Sportradar.OddsFeed.SDK.Common.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl;
@@ -172,6 +173,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
         public void Dispose()
         {
             Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         /// <summary>
@@ -190,7 +192,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
             var exists = _namedValues.ContainsKey(id);
             if (!_isDisposed)
             {
-                _semaphore.Release();
+                _semaphore.ReleaseSafe();
             }
             return exists;
         }
@@ -240,7 +242,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
             {
                 if (!_isDisposed)
                 {
-                    _semaphore.Release();
+                    _semaphore.ReleaseSafe();
                 }
             }
 

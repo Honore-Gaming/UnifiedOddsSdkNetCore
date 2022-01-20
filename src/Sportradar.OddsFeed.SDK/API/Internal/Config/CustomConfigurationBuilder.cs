@@ -218,15 +218,15 @@ namespace Sportradar.OddsFeed.SDK.API.Internal.Config
             {
                 _messagingUsername = section.Username;
             }
-            if (!string.IsNullOrEmpty(section.Username))
+            if (!string.IsNullOrEmpty(section.Password))
             {
                 _messagingPassword = section.Password;
             }
-            if (!string.IsNullOrEmpty(section.Username))
+            if (!string.IsNullOrEmpty(section.VirtualHost))
             {
                 _virtualHost = section.VirtualHost;
             }
-            if (!string.IsNullOrEmpty(section.Username))
+            if (!string.IsNullOrEmpty(section.ApiHost))
             {
                 _apiHost = section.ApiHost;
             }
@@ -248,7 +248,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal.Config
                                                    SupportedLocales,
                                                    _messagingHost,
                                                    _virtualHost,
-                                                   _messagingPort ?? (_useMessagingSsl ? SdkInfo.DefaultHostPort : SdkInfo.DefaultHostPort + 1),
+                                                   _messagingPort ?? (_useMessagingSsl ? EnvironmentManager.DefaultMqHostPort : EnvironmentManager.DefaultMqHostPort + 1),
                                                    string.IsNullOrEmpty(_messagingUsername) ? AccessToken : _messagingUsername,
                                                    _messagingPassword,
                                                    _apiHost,

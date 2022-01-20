@@ -1,6 +1,8 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+
+using System;
 using System.Net;
 using System.Net.Http;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -16,13 +18,13 @@ namespace Sportradar.OddsFeed.SDK.API.Test
     [TestClass]
     public class ReplayManagerTest
     {
-        private IDataRestful _httpDataRestful;
+        private TestDataFetcher _httpDataRestful;
         private IReplayManager _replayManager;
 
         [TestInitialize]
         public void Init()
         {
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             var config = TestConfigurationInternal.GetConfig();
 
@@ -35,7 +37,9 @@ namespace Sportradar.OddsFeed.SDK.API.Test
                 15
             };
 
-            _httpDataRestful = LogInterceptorFactory.Create<HttpDataRestful>(args, null, LoggerType.RestTraffic);
+            //_httpDataRestful = LogInterceptorFactory.Create<HttpDataRestful>(args, null, LoggerType.RestTraffic);
+            //_httpDataRestful = LogInterceptorFactory.Create<TestDataFetcher>(args, null, LoggerType.RestTraffic);
+            _httpDataRestful = new TestDataFetcher();
 
             object[] args2 =
             {
@@ -49,7 +53,10 @@ namespace Sportradar.OddsFeed.SDK.API.Test
         [TestMethod]
         public void AddMessageToReplayQueue()
         {
-            _replayManager.AddMessagesToReplayQueue(StaticRandom.Urn(9934843));
+            var matchId = StaticRandom.Urn(9934843);
+            _httpDataRestful.PutResponses.Add(new Tuple<string, int, HttpResponseMessage>($"/{matchId}", 0, new HttpResponseMessage(HttpStatusCode.Accepted)));
+            var replayResponse = _replayManager.AddMessagesToReplayQueue(matchId);
+            Assert.IsNotNull(replayResponse);
         }
     }
 }
