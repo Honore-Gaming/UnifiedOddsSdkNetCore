@@ -21,7 +21,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>C:\Devs-Local\github-sportradar\UnifiedOddsSdkNetCore\src\Sportradar.OddsFeed.SDK\Sportradar.OddsFeed.SDK.xml</DocumentationFile>
+    <DocumentationFile>.\Sportradar.OddsFeed.SDK.xml</DocumentationFile>
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
 
