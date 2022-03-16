@@ -11863,12 +11863,12 @@
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.IOutcomeProbabilities.Active">
             <summary>
-            Gets a value indicating whether the current <see cref="T:Sportradar.OddsFeed.SDK.Entities.IOutcomeOdds"/> is active - i.e. should bets on it be accepted
+            Gets a value indicating whether the current <see cref="T:Sportradar.OddsFeed.SDK.Entities.IOutcome"/> is active - i.e. should bets on it be accepted
             </summary>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.IOutcomeProbabilities.Probabilities">
             <summary>
-            Gets the probabilities for the current <see cref="T:Sportradar.OddsFeed.SDK.Entities.IOutcomeOdds"/> instance
+            Gets the probabilities for the current <see cref="T:Sportradar.OddsFeed.SDK.Entities.IOutcome"/> instance
             </summary>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.IOutcomeProbabilities.AdditionalProbabilities">
@@ -12263,6 +12263,11 @@
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableCompetitionCI.CompetitorsReferences">
             <summary>
             Gets the <see cref="T:System.Collections.Generic.IDictionary`2"/> specifying the competitors qualifiers
+            </summary>
+        </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableCompetitionCI.CompetitorsVirtual">
+            <summary>
+            Gets the <see cref="T:System.Collections.Generic.IList`1"/> specifying the competitors which are market virtual
             </summary>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableCompetitionCI.LiveOdds">
@@ -13083,6 +13088,11 @@
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableRoundCI.Phase">
             <summary>
             A <see cref="T:System.String"/> representation of the phase
+            </summary>
+        </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableRoundCI.BetradarName">
+            <summary>
+            A <see cref="T:System.String"/> representation of the betradar name
             </summary>
         </member>
         <member name="T:Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableScheduledStartTimeChangeCI">
@@ -15771,7 +15781,7 @@
         </member>
         <member name="F:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.CompetitorCI._fetchedCultures">
             <summary>
-            Gets the <see cref="T:System.Collections.Generic.IEnumerable`1"/> specifying the languages for which the current instance has translations
+            Gets the <see cref="T:System.Collections.Generic.IList`1"/> specifying the languages for which the current instance has translations
             </summary>
             <value>The fetched cultures</value>
         </member>
@@ -15996,8 +16006,8 @@
             <summary>
             Initializes a new instance of the <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI"/> class
             </summary>
-            <param name="dto">The <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI"/> used to create new instance</param>
-            <param name="culture">The culture of the input <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.RoundDTO"/></param>
+            <param name="dto">The <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.DelayedInfoDTO"/> used to create new instance</param>
+            <param name="culture">The culture of the input <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.DelayedInfoDTO"/></param>
         </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI.#ctor(Sportradar.OddsFeed.SDK.Entities.REST.Caching.Exportable.ExportableDelayedInfoCI)">
             <summary>
@@ -16009,8 +16019,8 @@
             <summary>
             Merges the specified <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI"/> into instance
             </summary>
-            <param name="dto">The <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI"/> used fro merging</param>
-            <param name="culture">The culture of the input <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI"/></param>
+            <param name="dto">The <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.DelayedInfoDTO"/> used for merging</param>
+            <param name="culture">The culture of the input <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.DelayedInfoDTO"/></param>
         </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.DelayedInfoCI.GetDescription(System.Globalization.CultureInfo)">
             <summary>
@@ -16754,6 +16764,12 @@
             </summary>
             <value>The phase</value>
         </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.RoundCI.BetradarName">
+            <summary>
+            Gets the betradar name
+            </summary>
+            <value>The betradar name</value>
+        </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.RoundCI.#ctor(Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.RoundDTO,System.Globalization.CultureInfo)">
             <summary>
             Initializes a new instance of the <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.RoundCI"/> class
@@ -17385,6 +17401,11 @@
             The competitors references
             </summary>
         </member>
+        <member name="F:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.CompetitionCI._competitorsVirtual">
+            <summary>
+            The competitors isVirtual attribute
+            </summary>
+        </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.CompetitionCI.#ctor(Sportradar.OddsFeed.SDK.Messages.URN,Sportradar.OddsFeed.SDK.Entities.REST.Internal.IDataRouterManager,Sportradar.OddsFeed.SDK.Common.Internal.ISemaphorePool,System.Globalization.CultureInfo,System.Runtime.Caching.MemoryCache)">
             <summary>
             Initializes a new instance of the <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.CompetitionCI"/> class
@@ -17475,6 +17496,12 @@
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.CompetitionCI.GetCompetitorsQualifiersAsync">
             <summary>
             Asynchronously get the list of available team qualifiers
+            </summary>
+            <returns>A <see cref="T:System.Threading.Tasks.Task`1"/> representing an async operation</returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.CompetitionCI.GetCompetitorsVirtualAsync">
+            <summary>
+            Asynchronously get the list of competitors marked as virtual
             </summary>
             <returns>A <see cref="T:System.Threading.Tasks.Task`1"/> representing an async operation</returns>
         </member>
@@ -17737,6 +17764,12 @@
             Asynchronously gets a <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Enums.StageType"/> for the associated sport event.
             </summary>
             <returns>A <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Enums.StageType"/> for the associated sport event.</returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.ICompetitionCI.GetCompetitorsVirtualAsync">
+            <summary>
+            Asynchronously get the list of competitors marked as virtual
+            </summary>
+            <returns>A <see cref="T:System.Threading.Tasks.Task`1"/> representing an async operation</returns>
         </member>
         <member name="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events.IDrawCI">
             <summary>
@@ -26307,6 +26340,11 @@
             Gets the phase of the associated round
             </summary>
         </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.Round.BetradarName">
+            <summary>
+            A betradar name
+            </summary>
+        </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.Round.#ctor(Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.CI.RoundCI,System.Collections.Generic.IEnumerable{System.Globalization.CultureInfo})">
             <summary>
             Initializes a new instance of the <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.Round"/> class
@@ -27326,7 +27364,7 @@
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.WeatherInfo.Temperature">
             <summary>
-            Gets the temperature in degrees celsius or a null reference if the expected temperature is not known
+            Gets the temperature in degrees Celsius or a null reference if the expected temperature is not known
             </summary>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.WeatherInfo.WeatherConditions">
@@ -32083,6 +32121,11 @@
             Gets the phase of the associated round
             </summary>
         </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.IRound.BetradarName">
+            <summary>
+            A betradar name
+            </summary>
+        </member>
         <member name="T:Sportradar.OddsFeed.SDK.Entities.REST.IScheduledStartTimeChange">
             <summary>
             Defines a contract implemented by classes providing schedule start time change
@@ -32953,12 +32996,12 @@
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.IWeatherInfo.Pitch">
             <summary>
-            TODO: add comments
+            Get the pitch
             </summary>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.IWeatherInfo.Temperature">
             <summary>
-            Gets the temperature in degrees celsius or a null reference if the expected temperature is not known
+            Gets the temperature in degrees Celsius or a null reference if the expected temperature is not known
             </summary>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.IWeatherInfo.WeatherConditions">
@@ -32973,7 +33016,7 @@
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Entities.REST.IWeatherInfo.WindAdvantage">
             <summary>
-            TOOD: add comments
+            Get the wind advantage
             </summary>
         </member>
         <member name="T:Sportradar.OddsFeed.SDK.Entities.REST.MarketMapping.IMarketMapping">
@@ -36183,6 +36226,9 @@
             <remarks/>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Messages.REST.matchRound.betradar_idSpecified">
+            <remarks/>
+        </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Messages.REST.matchRound.betradar_name">
             <remarks/>
         </member>
         <member name="P:Sportradar.OddsFeed.SDK.Messages.REST.matchRound.phase">
