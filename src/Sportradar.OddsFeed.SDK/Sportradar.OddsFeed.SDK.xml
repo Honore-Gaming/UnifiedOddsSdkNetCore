@@ -896,7 +896,7 @@
             The feed initialized
             </summary>
         </member>
-        <member name="F:Sportradar.OddsFeed.SDK.API.Feed._metricsRoot">
+        <member name="F:Sportradar.OddsFeed.SDK.API.Feed.MetricsRoot">
             <summary>
             A <see cref="T:App.Metrics.IMetricsRoot"/> used to provide metrics within sdk
             </summary>
@@ -1410,7 +1410,7 @@
             <summary>
             Specifies a contract defining events used for user notification
             </summary>
-            <typeparam name="T">A <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.ICompetition"/> derived type specifying the type of sport associated with <see cref="T:Sportradar.OddsFeed.SDK.API.IEntityDispatcher`1"/></typeparam>
+            <typeparam name="T">A <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.ISportEvent"/> derived type specifying the type of sport associated with <see cref="T:Sportradar.OddsFeed.SDK.API.IEntityDispatcher`1"/></typeparam>
         </member>
         <member name="E:Sportradar.OddsFeed.SDK.API.IEntityDispatcher`1.OnOddsChange">
             <summary>
@@ -5769,6 +5769,14 @@
             <param name="periods">The list of period ids to fetch the results for</param>
             <returns>The period statuses or empty if not found</returns>
         </member>
+        <member name="M:Sportradar.OddsFeed.SDK.API.Internal.SportDataProvider.GetTimelineEventsAsync(Sportradar.OddsFeed.SDK.Messages.URN,System.Globalization.CultureInfo)">
+            <summary>
+            Get the associated event timeline for single culture
+            </summary>
+            <param name="id">The id of the sport event to be fetched</param>
+            <param name="culture">The language to be fetched</param>
+            <returns>The event timeline or empty if not found</returns>
+        </member>
         <member name="T:Sportradar.OddsFeed.SDK.API.Internal.FeedSystemSession">
             <summary>
             System session handles system feed messages
@@ -6781,6 +6789,14 @@
             <param name="periods">The list of period ids to fetch the results for</param>
             <returns>The period statuses or empty if not found</returns>
         </member>
+        <member name="M:Sportradar.OddsFeed.SDK.API.ISportDataProvider.GetTimelineEventsAsync(Sportradar.OddsFeed.SDK.Messages.URN,System.Globalization.CultureInfo)">
+            <summary>
+            Get the associated event timeline for single culture
+            </summary>
+            <param name="id">The id of the sport event to be fetched</param>
+            <param name="culture">The language to be fetched</param>
+            <returns>The event timeline or empty if not found</returns>
+        </member>
         <member name="T:Sportradar.OddsFeed.SDK.API.MessageType">
             <summary>
             Enumerates the types of the messages received from the feed
@@ -7608,6 +7624,11 @@
             Starts the health check and returns <see cref="T:App.Metrics.Health.HealthCheckResult"/>
             </summary>
         </member>
+        <member name="F:Sportradar.OddsFeed.SDK.Common.Internal.Metrics.MetricsSettings.McUfSemaphorePool">
+            <summary>
+            Default context for metrics - UFGlobalEventProcessor
+            </summary>
+        </member>
         <member name="T:Sportradar.OddsFeed.SDK.Common.Internal.RealTimeProvider">
             <summary>
             A <see cref="T:Sportradar.OddsFeed.SDK.Common.Internal.ITimeProvider"/> giving access to the current time
@@ -7966,6 +7987,45 @@
             <param name="sensitiveData">Search for this data and replace with cleared input string</param>
             <returns>Cleared input string</returns>
         </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.Internal.SdkInfo.IsNumeric(System.Object)">
+            <summary>
+            Check if object is numeric value
+            </summary>
+            <param name="expression">The object to check</param>
+            <returns>Returns <c>true</c> if object represents numeric value</returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.Internal.SdkInfo.GetVariableNumber(System.Int32,System.Int32)">
+            <summary>
+            Get new value based on input and variable percent (up or down)
+            </summary>
+            <param name="baseValue">The base value</param>
+            <param name="variablePercent">The max percent to deviate from base value</param>
+            <returns>The new value within min-max</returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.Internal.SdkInfo.GetVariableNumber(System.TimeSpan,System.Int32)">
+            <summary>
+            Get new value based on input and variable percent (up or down)
+            </summary>
+            <param name="baseValue">The base value</param>
+            <param name="variablePercent">The max percent to deviate from base value</param>
+            <returns>The new value within min-max</returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.Internal.SdkInfo.AddVariableNumber(System.Int32,System.Int32)">
+            <summary>
+            Get new value based on input and variable percent (up only)
+            </summary>
+            <param name="baseValue">The base value</param>
+            <param name="variablePercent">The max percent to deviate from base value</param>
+            <returns>The new value within base-max</returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.Internal.SdkInfo.AddVariableNumber(System.TimeSpan,System.Int32)">
+            <summary>
+            Get new value based on input and variable percent (up only)
+            </summary>
+            <param name="baseValue">The base value</param>
+            <param name="variablePercent">The max percent to deviate from base value</param>
+            <returns>The new value within base-max</returns>
+        </member>
         <member name="T:Sportradar.OddsFeed.SDK.Common.Internal.SdkTimer">
             <summary>
             A timer used for invocation of period tasks
@@ -8323,6 +8383,13 @@
             <value>A heartbeat timeout to use when negotiating with the server (in seconds).</value>
             <remarks>Between 10 and 180 (default 60s)</remarks>
         </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Common.OperationManager.FastHttpClientTimeout">
+            <summary>
+            Gets a timeout for HttpClient for fast api request (in seconds).
+            </summary>
+            <value>A timeout for HttpClient for fast api request (in seconds).</value>
+            <remarks>Between 1 and 30 (default 5s). Used for summary, competitor profile, player profile and variant description endpoint. Must be set before feed instance is created.</remarks>
+        </member>
         <member name="M:Sportradar.OddsFeed.SDK.Common.OperationManager.#cctor">
             <summary>
             Initialization of default values of the <see cref="T:Sportradar.OddsFeed.SDK.Common.OperationManager"/>
@@ -8371,6 +8438,13 @@
             </summary>
             <param name="rabbitHeartbeat">The heartbeat timeout to use when negotiating with the rabbit server (in seconds).</param>
             <remarks>Between 10 and 180 (default 60s) - set before connection is made</remarks>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.OperationManager.SetFastHttpClientTimeout(System.TimeSpan)">
+            <summary>
+            Sets a timeout for HttpClient for fast api request (in seconds).
+            </summary>
+            <param name="timeout">The timeout to be set</param>
+            /// <remarks>Between 1 and 30 (default 5s) - set before connection is made.</remarks>
         </member>
         <member name="T:Sportradar.OddsFeed.SDK.Common.SdkEnvironment">
             <summary>
@@ -8531,6 +8605,11 @@
             Method for getting <see cref="T:App.Metrics.IMeasureMetrics"/>
             </summary>
             <returns>Returns <see cref="T:App.Metrics.IMetricsRoot"/> </returns>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Common.SdkMetricsFactory.SystemMeasures">
+            <summary>
+            Record system/app metrics
+            </summary>
         </member>
         <member name="T:Sportradar.OddsFeed.SDK.Entities.BetSettlementCertainty">
             <summary>
@@ -21069,18 +21148,22 @@
             <param name="deserializer">A <see cref="T:Sportradar.OddsFeed.SDK.Common.Internal.IDeserializer`1" /> used to deserialize the fetch data</param>
             <param name="mapperFactory">A <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Mapping.ISingleTypeMapperFactory`2" /> used to construct instances of <see cref="T:Sportradar.OddsFeed.SDK.Entities.REST.Internal.Mapping.ISingleTypeMapper`1" /></param>
         </member>
-        <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataProvider`2.GetDataAsyncInternal(System.Uri)">
+        <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataProvider`2.GetDataAsyncInternal(System.Uri,System.String,System.String)">
             <summary>
             Fetches and deserializes the data from the provided <see cref="T:System.Uri"/>.
             </summary>
             <param name="uri">A <see cref="T:System.Uri"/> specifying the data location</param>
+            <param name="requestParams">The parameters associated with the request (if present)</param>
+            <param name="culture">The language associated with the request</param>
             <returns>A <see cref="T:System.Threading.Tasks.Task`1"/> representing the ongoing operation</returns>
         </member>
-        <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataProvider`2.GetDataInternal(System.Uri)">
+        <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataProvider`2.GetDataInternal(System.Uri,System.String,System.String)">
             <summary>
             Fetches and deserializes the data from the provided <see cref="T:System.Uri"/>.
             </summary>
             <param name="uri">A <see cref="T:System.Uri"/> specifying the data location</param>
+            <param name="requestParams">The parameters associated with the request (if present)</param>
+            <param name="culture">The language associated with the request</param>
             <returns>A <see cref="T:System.Threading.Tasks.Task`1"/> representing the ongoing operation</returns>
         </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataProvider`2.GetRequestUri(System.Object[])">
@@ -21458,7 +21541,7 @@
             <param name="id">The id of the sport event</param>
             <param name="culture">The culture to be fetched</param>
             <param name="requester">The cache item which invoked request</param>
-            <returns>Task</returns>
+            <returns>The match timeline data object</returns>
         </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataRouterManager.GetMarketDescriptionsAsync(System.Globalization.CultureInfo)">
             <summary>
@@ -21469,7 +21552,7 @@
         </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.DataRouterManager.GetVariantMarketDescriptionAsync(System.Int32,System.String,System.Globalization.CultureInfo)">
             <summary>
-            Gets the variant market description (dynamic)
+            Gets the variant market description (dynamic, single)
             </summary>
             <param name="id">The id of the market</param>
             <param name="variant">The variant URN</param>
@@ -27953,6 +28036,7 @@
             <param name="id">The id of the sport event</param>
             <param name="culture">The culture to be fetched</param>
             <param name="requester">The cache item which invoked request</param>
+            <returns>The match timeline data object</returns>
         </member>
         <member name="M:Sportradar.OddsFeed.SDK.Entities.REST.Internal.IDataRouterManager.GetMarketDescriptionsAsync(System.Globalization.CultureInfo)">
             <summary>
@@ -33313,12 +33397,30 @@
             The rest message
             </summary>
         </member>
-        <member name="M:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs.#ctor(System.Uri,Sportradar.OddsFeed.SDK.Messages.REST.RestMessage)">
+        <member name="P:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs.RequestParams">
+            <summary>
+            The parameters associated with the request (if present)
+            </summary>
+        </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs.RequestTime">
+             <summary>
+            The time it took for the request to execute
+             </summary>
+        </member>
+        <member name="P:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs.Language">
+            <summary>
+            The language associated with the request
+            </summary>
+        </member>
+        <member name="M:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs.#ctor(System.Uri,Sportradar.OddsFeed.SDK.Messages.REST.RestMessage,System.String,System.TimeSpan,System.String)">
             <summary>
             Initializes a new instance of the <see cref="T:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs" /> class
             </summary>
             <param name="uri">The <see cref="P:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawApiDataEventArgs.Uri"/> used to get the api data</param>
             <param name="restMessage">The rest message</param>
+            <param name="requestParams">The parameters associated with the request</param>
+            <param name="requestTime">The time needed to execute request</param>
+            <param name="language">The language associated with the request</param>
         </member>
         <member name="T:Sportradar.OddsFeed.SDK.Messages.EventArguments.RawFeedMessageEventArgs">
             <summary>
