@@ -277,8 +277,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Profiles
             var expireDate = DateTime.Now.AddSeconds(5);
             while (bag.ContainsKey(id) && DateTime.Now < expireDate)
             {
-                //Thread.Sleep(15);
-                Task.Delay(15);
+                Thread.Sleep(15);
+                //Task.Delay(15);
             }
             if (!bag.ContainsKey(id))
             {
@@ -293,8 +293,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Profiles
             {
                 if (!bag.TryRemove(id, out _))
                 {
-                    //Thread.Sleep(10);
-                    Task.Delay(10);
+                    Thread.Sleep(10);
+                    //Task.Delay(10);
                 }
             }
         }
