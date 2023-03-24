@@ -1,11 +1,11 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Messages.Feed;
-using System;
-using System.Diagnostics;
 
 namespace Sportradar.OddsFeed.SDK.API
 {
@@ -27,7 +27,7 @@ namespace Sportradar.OddsFeed.SDK.API
         }
 
         /// <summary>
-        /// Dispatches the <code>message</code>
+        /// Dispatches the <c>message</c>
         /// </summary>
         /// <typeparam name="T">The type of the event arguments</typeparam>
         /// <param name="handler">Event delegate</param>
@@ -37,7 +37,7 @@ namespace Sportradar.OddsFeed.SDK.API
         {
             if (handler == null)
             {
-                Log.LogWarning($"Cannot dispatch message {message.GetType().Name} because no event listeners are attached to associated event handler. Dropping message[{message}]");
+                Log.LogWarning($"Cannot dispatch message {message.GetType().Name} because no event listeners are attached to associated event handler. Dropping message [{message}]");
                 return;
             }
 
@@ -51,7 +51,7 @@ namespace Sportradar.OddsFeed.SDK.API
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                Log.LogWarning($"Event handler throw an exception while processing message[{message}]. Exception: {ex.Message}", ex);
+                Log.LogWarning(ex, $"Event handler throw an exception while processing message [{message}]. Duration: {stopwatch.ElapsedMilliseconds} ms.");
             }
         }
 
@@ -85,7 +85,7 @@ namespace Sportradar.OddsFeed.SDK.API
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                Log.LogWarning(ex, $"Event handler throw an exception while processing message {messageName}. Exception: {ex.Message}");
+                Log.LogWarning(ex, $"Event handler throw an exception while processing message {messageName}. Duration: {stopwatch.ElapsedMilliseconds} ms.");
             }
         }
     }

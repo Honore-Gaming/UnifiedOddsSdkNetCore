@@ -23,6 +23,8 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
         private readonly IDataRouterManager _dataRouterManager;
 
+        public ICustomBetSelectionBuilder CustomBetSelectionBuilder { get; }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="CustomBetManager"/> class
         /// </summary>
@@ -34,13 +36,18 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             CustomBetSelectionBuilder = customBetSelectionBuilder ?? throw new ArgumentNullException(nameof(customBetSelectionBuilder));
         }
 
-        public async Task<IAvailableSelections> GetAvailableSelectionsAsync(URN eventId)
+        public Task<IAvailableSelections> GetAvailableSelectionsAsync(URN eventId)
         {
             if (eventId == null)
             {
                 throw new ArgumentNullException(nameof(eventId));
             }
 
+            return GetAvailableSelectionsInternalAsync(eventId);
+        }
+
+        private async Task<IAvailableSelections> GetAvailableSelectionsInternalAsync(URN eventId)
+        {
             try
             {
                 _clientLog.LogInformation($"Invoking CustomBetManager.GetAvailableSelectionsAsync({eventId})");
@@ -48,40 +55,72 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             }
             catch (CommunicationException ce)
             {
-                _executionLog.LogWarning($"Event[{eventId}] getting available selections failed, CommunicationException: {ce.Message}");
+                _executionLog.LogWarning(ce, $"Event[{eventId}] getting available selections failed, CommunicationException: {ce.Message}");
                 throw;
             }
             catch (Exception e)
             {
-                _executionLog.LogWarning($"Event[{eventId}] getting available selections failed.", e);
+                _executionLog.LogWarning(e, $"Event[{eventId}] getting available selections failed.");
                 throw;
             }
         }
 
-        public async Task<ICalculation> CalculateProbabilityAsync(IEnumerable<ISelection> selections)
+        public Task<ICalculation> CalculateProbabilityAsync(IEnumerable<ISelection> selections)
         {
             if (selections == null)
             {
                 throw new ArgumentNullException(nameof(selections));
             }
 
+            return CalculateProbabilityInternalAsync(selections);
+        }
+
+        private async Task<ICalculation> CalculateProbabilityInternalAsync(IEnumerable<ISelection> selections)
+        {
             try
             {
                 _clientLog.LogInformation($"Invoking CustomBetManager.CalculateProbability({selections})");
-                return await _dataRouterManager.CalculateProbability(selections).ConfigureAwait(false);
+                return await _dataRouterManager.CalculateProbabilityAsync(selections).ConfigureAwait(false);
             }
             catch (CommunicationException ce)
             {
-                _executionLog.LogWarning($"Calculating probabilities failed, CommunicationException: {ce.Message}");
+                _executionLog.LogWarning(ce, $"Calculating probabilities failed, CommunicationException: {ce.Message}");
                 throw;
             }
             catch (Exception e)
             {
-                _executionLog.LogWarning($"Calculating probabilities failed.", e);
+                _executionLog.LogWarning(e, "Calculating probabilities failed.");
                 throw;
             }
         }
 
-        public ICustomBetSelectionBuilder CustomBetSelectionBuilder { get; }
+        public Task<ICalculationFilter> CalculateProbabilityFilterAsync(IEnumerable<ISelection> selections)
+        {
+            if (selections == null)
+            {
+                throw new ArgumentNullException(nameof(selections));
+            }
+
+            return CalculateProbabilityFilterInternalAsync(selections);
+        }
+
+        private async Task<ICalculationFilter> CalculateProbabilityFilterInternalAsync(IEnumerable<ISelection> selections)
+        {
+            try
+            {
+                _clientLog.LogInformation($"Invoking CustomBetManager.CalculateProbabilityFilter({selections})");
+                return await _dataRouterManager.CalculateProbabilityFilteredAsync(selections).ConfigureAwait(false);
+            }
+            catch (CommunicationException ce)
+            {
+                _executionLog.LogWarning(ce, $"Calculating probabilities filtered failed, CommunicationException: {ce.Message}");
+                throw;
+            }
+            catch (Exception e)
+            {
+                _executionLog.LogWarning(e, "Calculating probabilities filtered failed.");
+                throw;
+            }
+        }
     }
 }

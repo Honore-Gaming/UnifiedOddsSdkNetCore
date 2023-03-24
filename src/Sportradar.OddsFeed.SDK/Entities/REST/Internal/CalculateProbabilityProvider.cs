@@ -1,12 +1,6 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
-using Sportradar.OddsFeed.SDK.Common.Exceptions;
-using Sportradar.OddsFeed.SDK.Common.Internal;
-using Sportradar.OddsFeed.SDK.Entities.REST.CustomBet;
-using Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet;
-using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Mapping;
-using Sportradar.OddsFeed.SDK.Messages.REST;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,6 +11,12 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
+using Sportradar.OddsFeed.SDK.Common.Exceptions;
+using Sportradar.OddsFeed.SDK.Common.Internal;
+using Sportradar.OddsFeed.SDK.Entities.REST.CustomBet;
+using Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet;
+using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Mapping;
+using Sportradar.OddsFeed.SDK.Messages.REST;
 
 namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
 {
@@ -27,7 +27,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
     {
         private readonly IDataPoster _poster;
         private readonly IDeserializer<CalculationResponseType> _deserializer;
-        private readonly ISingleTypeMapperFactory<CalculationResponseType, CalculationDTO> _mapperFactory;
+        private readonly ISingleTypeMapperFactory<CalculationResponseType, CalculationDto> _mapperFactory;
         private readonly string _uriFormat;
         private readonly XmlSerializer _serializer;
 
@@ -38,38 +38,26 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         /// <param name="poster">A <see cref="IDataPoster" /> used to fetch the data</param>
         /// <param name="deserializer">A <see cref="IDeserializer{CalculationResponseType}" /> used to deserialize the fetch data</param>
         /// <param name="mapperFactory">A <see cref="ISingleTypeMapperFactory{CalculationResponseType, CalculationDTO}" /> used to construct instances of <see cref="ISingleTypeMapper{CalculationDTO}" /></param>
-        public CalculateProbabilityProvider(string uriFormat, IDataPoster poster, IDeserializer<CalculationResponseType> deserializer, ISingleTypeMapperFactory<CalculationResponseType, CalculationDTO> mapperFactory)
+        public CalculateProbabilityProvider(string uriFormat, IDataPoster poster, IDeserializer<CalculationResponseType> deserializer, ISingleTypeMapperFactory<CalculationResponseType, CalculationDto> mapperFactory)
         {
             if (string.IsNullOrWhiteSpace(uriFormat))
             {
                 throw new ArgumentOutOfRangeException(nameof(uriFormat));
             }
-            if (poster == null)
-            {
-                throw new ArgumentNullException(nameof(poster));
-            }
-            if (deserializer == null)
-            {
-                throw new ArgumentNullException(nameof(deserializer));
-            }
-            if (mapperFactory == null)
-            {
-                throw new ArgumentNullException(nameof(mapperFactory));
-            }
 
             _uriFormat = uriFormat;
-            _poster = poster;
-            _deserializer = deserializer;
-            _mapperFactory = mapperFactory;
+            _poster = poster ?? throw new ArgumentNullException(nameof(poster));
+            _deserializer = deserializer ?? throw new ArgumentNullException(nameof(deserializer));
+            _mapperFactory = mapperFactory ?? throw new ArgumentNullException(nameof(mapperFactory));
             _serializer = new XmlSerializer(typeof(SelectionsType));
         }
 
         /// <summary>
-        /// Asynchronously gets a <see cref="CalculationDTO"/> instance
+        /// Asynchronously gets a <see cref="CalculationDto"/> instance
         /// </summary>
         /// <param name="selections">The <see cref="IEnumerable{ISelection}"/> containing selections for which the probability should be fetched</param>
         /// <returns>A <see cref="Task{CalculationDTO}"/> representing the probability calculation</returns>
-        public async Task<CalculationDTO> GetDataAsync(IEnumerable<ISelection> selections)
+        public async Task<CalculationDto> GetDataAsync(IEnumerable<ISelection> selections)
         {
             var content = GetContent(new SelectionsType
             {
@@ -99,17 +87,19 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         private HttpContent GetContent(SelectionsType content)
         {
             using (var stream = new MemoryStream())
-            using (var writer = XmlWriter.Create(stream))
             {
-                _serializer.Serialize(writer, content);
-                writer.Flush();
-                stream.Seek(0, SeekOrigin.Begin);
-                var reader = new StreamReader(stream, Encoding.UTF8);
-                var str = reader.ReadToEnd();
-                var httpContent = new StringContent(str);
-                httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/xml");
+                using (var writer = XmlWriter.Create(stream))
+                {
+                    _serializer.Serialize(writer, content);
+                    writer.Flush();
+                    stream.Seek(0, SeekOrigin.Begin);
+                    var reader = new StreamReader(stream, Encoding.UTF8);
+                    var str = reader.ReadToEnd();
+                    var httpContent = new StringContent(str);
+                    httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/xml");
 
-                return httpContent;
+                    return httpContent;
+                }
             }
         }
     }

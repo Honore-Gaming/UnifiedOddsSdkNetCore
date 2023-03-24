@@ -1,15 +1,15 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Net.Security;
+using System.Security.Authentication;
 using Dawn;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
-using System;
-using System.Net.Security;
-using System.Security.Authentication;
 
 namespace Sportradar.OddsFeed.SDK.API.Internal
 {
@@ -84,8 +84,9 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         }
 
         /// <summary>
-        /// Configures the current <see cref="ConfiguredConnectionFactory"/> based on config options read from <code>_config</code> field
+        /// Configures the current <see cref="ConfiguredConnectionFactory"/> based on config options read from <c>_config</c> field
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Vulnerability", "S4423:Weak SSL/TLS protocols should not be used", Justification = "Support for all feed environment")]
         private void Configure()
         {
             _connectionFactory.HostName = _config.Host;
@@ -104,10 +105,10 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                 _connectionFactory.Ssl.AcceptablePolicyErrors = SslPolicyErrors.RemoteCertificateChainErrors | SslPolicyErrors.RemoteCertificateNameMismatch | SslPolicyErrors.RemoteCertificateNotAvailable;
             }
 
-            _connectionFactory.ClientProperties.Add("SrUfSdkType", ".netstd");
+            _connectionFactory.ClientProperties.Add("SrUfSdkType", SdkInfo.SdkType);
             _connectionFactory.ClientProperties.Add("SrUfSdkVersion", SdkInfo.GetVersion());
             _connectionFactory.ClientProperties.Add("SrUfSdkInit", $"{DateTime.Now:yyyyMMddHHmm}");
-            _connectionFactory.ClientProperties.Add("SrUfSdkConnName", "RabbitMQ / NETStd");
+            _connectionFactory.ClientProperties.Add("SrUfSdkConnName", $"RabbitMQ / {SdkInfo.SdkType}");
             _connectionFactory.ClientProperties.Add("SrUfSdkBId", $"{_config.BookmakerDetails?.BookmakerId}");
         }
 

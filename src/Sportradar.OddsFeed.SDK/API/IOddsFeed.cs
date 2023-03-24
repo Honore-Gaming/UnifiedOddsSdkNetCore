@@ -75,6 +75,11 @@ namespace Sportradar.OddsFeed.SDK.API
         void Open();
 
         /// <summary>
+        /// Returns an indicator if the feed instance is opened or not
+        /// </summary>
+        bool IsOpen();
+
+        /// <summary>
         /// Closes the current feed by closing all created sessions and disposing of all resources associated with the current instance
         /// </summary>
         void Close();

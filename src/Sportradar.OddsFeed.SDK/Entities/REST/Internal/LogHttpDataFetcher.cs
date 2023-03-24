@@ -3,12 +3,12 @@
 */
 using System;
 using System.Diagnostics;
-using Dawn;
 using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using App.Metrics.Health;
+using Dawn;
 using Microsoft.Extensions.Logging;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Exceptions;
@@ -32,14 +32,13 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         /// <summary>
         /// Initializes a new instance of the <see cref="LogHttpDataFetcher"/> class.
         /// </summary>
-        /// <param name="client">A <see cref="HttpClient"/> used to invoke HTTP requests</param>
-        /// <param name="accessToken">A token used when making the http requests</param>
+        /// <param name="client">A <see cref="ISdkHttpClient"/> used to invoke HTTP requests</param>
         /// <param name="sequenceGenerator">A <see cref="ISequenceGenerator"/> used to identify requests</param>
         /// <param name="responseDeserializer">The deserializer for unexpected response</param>
         /// <param name="connectionFailureLimit">Indicates the limit of consecutive request failures, after which it goes in "blocking mode"</param>
         /// <param name="connectionFailureTimeout">indicates the timeout after which comes out of "blocking mode" (in seconds)</param>
-        public LogHttpDataFetcher(HttpClient client, string accessToken, ISequenceGenerator sequenceGenerator, IDeserializer<response> responseDeserializer, int connectionFailureLimit = 5, int connectionFailureTimeout = 15)
-            : base(client, accessToken, responseDeserializer, connectionFailureLimit, connectionFailureTimeout)
+        public LogHttpDataFetcher(ISdkHttpClient client, ISequenceGenerator sequenceGenerator, IDeserializer<response> responseDeserializer, int connectionFailureLimit = 5, int connectionFailureTimeout = 15)
+            : base(client, responseDeserializer, connectionFailureLimit, connectionFailureTimeout)
         {
             Guard.Argument(sequenceGenerator, nameof(sequenceGenerator)).NotNull();
             Guard.Argument(connectionFailureLimit, nameof(connectionFailureLimit)).Positive();
@@ -57,15 +56,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         public override async Task<Stream> GetDataAsync(Uri uri)
         {
             var dataId = _sequenceGenerator.GetNext().ToString("D7"); // because request can take long time, there may be several request at the same time; Id to know what belongs together.
-            var watch = new Stopwatch();
 
             var logBuilder = new StringBuilder();
             logBuilder.Append("Id:").Append(dataId).Append(" Fetching url: ").Append(uri.AbsoluteUri);
 
+            var watch = Stopwatch.StartNew();
             Stream responseStream;
             try
             {
-                watch.Start();
                 responseStream = await base.GetDataAsync(uri).ConfigureAwait(false);
                 watch.Stop();
             }
@@ -74,16 +72,16 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
                 watch.Stop();
                 if (ex.GetType() == typeof(CommunicationException))
                 {
-                    var commException = (CommunicationException) ex;
+                    var commException = (CommunicationException)ex;
                     logBuilder.Append(" ResponseCode:").Append(commException.ResponseCode);
-                    logBuilder.Append(" Duration:").Append(watch.Elapsed);
-                    logBuilder.Append(" Response:").Append(commException.Response?.Replace("\n", string.Empty));
+                    logBuilder.Append(" Duration: ").Append(watch.ElapsedMilliseconds);
+                    logBuilder.Append(" ms Response:").Append(commException.Response?.Replace("\n", string.Empty));
                     RestLog.LogError(logBuilder.ToString());
                 }
                 throw;
             }
 
-            logBuilder.Append(" Duration:").Append(watch.Elapsed);
+            logBuilder.Append(" Duration: ").Append(watch.ElapsedMilliseconds).Append(" ms");
             if (!RestLog.IsEnabled(LogLevel.Debug))
             {
                 RestLog.LogInformation(logBuilder.ToString());
@@ -112,15 +110,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         public override Stream GetData(Uri uri)
         {
             var dataId = _sequenceGenerator.GetNext().ToString("D7"); // because request can take long time, there may be several request at the same time; Id to know what belongs together
-            var watch = new Stopwatch();
 
             var logBuilder = new StringBuilder();
             logBuilder.Append("Id:").Append(dataId).Append(" Fetching url: ").Append(uri.AbsoluteUri);
 
+            var watch = Stopwatch.StartNew();
             Stream responseStream;
             try
             {
-                watch.Start();
                 responseStream = base.GetData(uri);
                 watch.Stop();
             }
@@ -131,14 +128,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
                 {
                     var commException = (CommunicationException)ex;
                     logBuilder.Append(" ResponseCode:").Append(commException.ResponseCode);
-                    logBuilder.Append(" Duration:").Append(watch.Elapsed);
-                    logBuilder.Append(" Response:").Append(commException.Response?.Replace("\n", string.Empty));
+                    logBuilder.Append(" Duration: ").Append(watch.ElapsedMilliseconds);
+                    logBuilder.Append(" ms Response:").Append(commException.Response?.Replace("\n", string.Empty));
                     RestLog.LogError(logBuilder.ToString());
                 }
                 throw;
             }
 
-            logBuilder.Append(" Duration:").Append(watch.Elapsed);
+            logBuilder.Append(" Duration: ").Append(watch.ElapsedMilliseconds).Append(" ms");
             if (!RestLog.IsEnabled(LogLevel.Debug))
             {
                 RestLog.LogInformation(logBuilder.ToString());
@@ -169,15 +166,31 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         {
             var dataId = _sequenceGenerator.GetNext().ToString("D7");
 
-            RestLog.LogInformation($"Id:{dataId} Posting url: {uri.AbsoluteUri}");
             if (content != null)
             {
-                //var s = await content.ReadAsStringAsync().ConfigureAwait(false);
-                //RestLog.LogInformation($"Id:{dataId} Content: {s}");
+                try
+                {
+                    if (RestLog.IsEnabled(LogLevel.Debug))
+                    {
+                        var s = await content.ReadAsStringAsync().ConfigureAwait(false);
+                        RestLog.LogDebug($"Id:{dataId} Posting url: {uri.AbsoluteUri} {s}");
+                    }
+                    else
+                    {
+                        RestLog.LogInformation($"Id:{dataId} Posting url: {uri.AbsoluteUri}");
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+            }
+            else
+            {
+                RestLog.LogInformation($"Id:{dataId} Posting url: {uri.AbsoluteUri}");
             }
 
-            var watch = new Stopwatch();
-            watch.Start();
+            var watch = Stopwatch.StartNew();
 
             HttpResponseMessage response;
             try
@@ -194,15 +207,27 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
                 RestLog.LogError($"Id:{dataId} Posting error at {watch.ElapsedMilliseconds} ms.");
                 if (ex.GetType() != typeof(ObjectDisposedException) && ex.GetType() != typeof(TaskCanceledException))
                 {
-                    RestLog.LogError(ex.Message, ex);
+                    RestLog.LogError(ex, ex.Message);
                 }
                 throw;
             }
 
             watch.Stop();
+            var responseContent = string.Empty;
+            if (response.Content != null)
+            {
+                try
+                {
+                    responseContent = response.Content.ReadAsStringAsync().Result;
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+            }
             if (RestLog.IsEnabled(LogLevel.Debug))
             {
-                RestLog.LogDebug($"Id:{dataId} Posting took {watch.ElapsedMilliseconds} ms. Response code: {(int) response.StatusCode}-{response.ReasonPhrase}.");
+                RestLog.LogDebug($"Id:{dataId} Posting took {watch.ElapsedMilliseconds} ms. Response: {(int)response.StatusCode}-{response.ReasonPhrase} {responseContent}");
             }
             else
             {
@@ -219,7 +244,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         /// </summary>
         public void RegisterHealthCheck()
         {
-            //HealthChecks.RegisterHealthCheck("LogHttpDataFetcher", new Func<HealthCheckResult>(StartHealthCheck));
+            // Method intentionally left empty.
         }
 
         /// <summary>

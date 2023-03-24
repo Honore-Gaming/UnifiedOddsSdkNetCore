@@ -3,11 +3,10 @@
 */
 using System;
 using System.Collections.Generic;
-using Dawn;
 using System.Linq;
 using System.Threading;
+using Dawn;
 using Microsoft.Extensions.Logging;
-
 using Sportradar.OddsFeed.SDK.API.EventArguments;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
@@ -161,7 +160,6 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         {
             var manager = _producerRecoveryManagers.FirstOrDefault(f => f.Key.Id == feedMessageReceivedEventArgs.Message.ProducerId).Value;
             manager?.ProcessSystemMessage(feedMessageReceivedEventArgs.Message);
-
         }
 
         private void OnUserSessionMessageReceived(object sender, FeedMessageReceivedEventArgs feedMessageReceivedEventArgs)
@@ -177,7 +175,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// <param name="e">The <see cref="TrackerStatusChangeEventArgs"/>Additional information about the event.</param>
         private void OnRecoveryTrackerStatusChanged(object sender, TrackerStatusChangeEventArgs e)
         {
-            var tracker = (IProducerRecoveryManager) sender;
+            var tracker = (IProducerRecoveryManager)sender;
             if (e.NewStatus == ProducerRecoveryStatus.Started)
             {
                 foreach (var sessionMessageManager in _sessionMessageManagers)
@@ -224,7 +222,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// Opens the current instance
         /// </summary>
         /// <param name="interests">The interests for which to open trackers</param>
-        public void Open(IEnumerable<MessageInterest> interests)
+        public void Open(ICollection<MessageInterest> interests)
         {
             Guard.Argument(interests, nameof(interests)).NotNull().NotEmpty();
 
@@ -232,11 +230,11 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
             // the LINQ query below might produce a list with same entries (one producer found more than once)
             var producersToOpen = from producer in _producerManager.Producers
-                where !producer.IsDisabled && producer.IsAvailable
-                let producerScopes = ((Producer) producer).Scope.Select(MessageInterest.FromScope).ToList()
-                from interest in interestList
-                where !interest.IsScopeInterest || producerScopes.Contains(interest)
-                select producer;
+                                  where !producer.IsDisabled && producer.IsAvailable
+                                  let producerScopes = ((Producer)producer).Scope.Select(MessageInterest.FromScope).ToList()
+                                  from interest in interestList
+                                  where !interest.IsScopeInterest || producerScopes.Contains(interest)
+                                  select producer;
 
             var producerRecoveryManagers = producersToOpen.Distinct(new ProducerEqualityComparer()).Select(p => _producerRecoveryManagerFactory.GetRecoveryTracker(p, interestList)).ToList();
 

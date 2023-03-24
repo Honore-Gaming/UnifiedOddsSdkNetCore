@@ -1,6 +1,9 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+
 namespace Sportradar.OddsFeed.SDK.Entities.REST.CustomBet
 {
     /// <summary>
@@ -17,5 +20,15 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.CustomBet
         /// Gets the probability
         /// </summary>
         double Probability { get; }
+
+        /// <summary>
+        /// The available selections
+        /// </summary>
+        IEnumerable<IAvailableSelections> AvailableSelections => new List<IAvailableSelections>();
+
+        /// <summary>
+        /// DateTime when API response was generated
+        /// </summary>
+        DateTime? GeneratedAt => null;
     }
 }

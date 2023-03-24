@@ -1,6 +1,11 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Castle.Core.Internal;
 using Dawn;
 using Microsoft.Extensions.Logging;
@@ -8,11 +13,6 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Internal;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Sportradar.OddsFeed.SDK.Entities.Internal
 {
@@ -183,11 +183,12 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
             }
             var interestName = _interest == null ? "system" : _interest.Name;
             _consumer = new EventingBasicConsumer(_channel);
-            var consumerTag = $"UfSdk-NetStd|{SdkInfo.GetVersion()}|{interestName}|{_channel.ChannelNumber}|{DateTime.Now:yyyyMMdd-HHmmss}";
+            var consumerTag = $"UfSdk-NetStd|{SdkInfo.GetVersion()}|{interestName}|{_channel.ChannelNumber}|{DateTime.Now:yyyyMMdd-HHmmss}|{SdkInfo.GetGuid(8)}";
             _consumer.Received += ConsumerOnDataReceived;
             _consumer.Shutdown += ConsumerOnShutdown;
             _channel.BasicConsume(declareResult.QueueName, true, consumerTag, _consumer);
             _channel.ModelShutdown += ChannelOnModelShutdown;
+            ExecutionLog.LogInformation("BasicConsume for channel={}, queue={} and consumer tag {} executed.", _channel.ChannelNumber, declareResult.QueueName, string.Join(",", _consumer.ConsumerTags));
 
             _lastMessageReceived = DateTime.MinValue;
             _channelStarted = DateTime.Now;
@@ -271,7 +272,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                 }
                 catch (Exception e)
                 {
-                    ExecutionLog.LogWarning($"Error checking connection for channelNumber {_channel?.ChannelNumber}: " + e.Message);
+                    ExecutionLog.LogWarning(e, $"Error checking connection for channelNumber: {_channel?.ChannelNumber}");
                 }
             }
 

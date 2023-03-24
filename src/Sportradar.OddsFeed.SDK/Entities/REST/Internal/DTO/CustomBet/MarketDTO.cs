@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Castle.Core.Internal;
 using Sportradar.OddsFeed.SDK.Messages.REST;
 
 namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet
@@ -11,7 +12,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet
     /// <summary>
     /// Defines a data-transfer-object for available selections for the market
     /// </summary>
-    internal class MarketDTO
+    internal class MarketDto
     {
         /// <summary>
         /// Gets the id of the market
@@ -28,14 +29,16 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet
         /// </summary>
         public IEnumerable<string> Outcomes { get; }
 
-        internal MarketDTO(MarketType market)
+        internal MarketDto(MarketType market)
         {
             if (market == null)
+            {
                 throw new ArgumentNullException(nameof(market));
+            }
 
             Id = market.id;
             Specifiers = market.specifiers;
-            Outcomes = market.outcome.Select(o => o.id).ToList().AsReadOnly();
+            Outcomes = market.outcome.IsNullOrEmpty() ? new List<string>() : market.outcome.Select(o => o.id);
         }
     }
 }

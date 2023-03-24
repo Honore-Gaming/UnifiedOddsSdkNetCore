@@ -3,7 +3,6 @@
 */
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet;
 
 namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.CustomBet
@@ -16,15 +15,17 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.CustomBet
         /// <summary>
         /// Initializes a new instance of the <see cref="Market"/> class
         /// </summary>
-        /// <param name="market">a <see cref="MarketDTO"/> representing the market</param>
-        internal Market(MarketDTO market)
+        /// <param name="market">a <see cref="MarketDto"/> representing the market</param>
+        internal Market(MarketDto market)
         {
             if (market == null)
+            {
                 throw new ArgumentNullException(nameof(market));
+            }
 
             Id = market.Id;
             Specifiers = market.Specifiers;
-            Outcomes = market.Outcomes.ToList().AsReadOnly();
+            Outcomes = market.Outcomes;
         }
 
         public int Id { get; }

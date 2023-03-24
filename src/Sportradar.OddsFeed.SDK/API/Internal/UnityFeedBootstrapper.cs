@@ -1,6 +1,14 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Runtime.Caching;
 using App.Metrics;
 using Dawn;
 using Microsoft.Extensions.Logging;
@@ -23,25 +31,19 @@ using Sportradar.OddsFeed.SDK.Entities.REST.Internal.MarketNames;
 using Sportradar.OddsFeed.SDK.Messages;
 using Sportradar.OddsFeed.SDK.Messages.Feed;
 using Sportradar.OddsFeed.SDK.Messages.REST;
-using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Globalization;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Runtime.Caching;
 using Unity;
 using Unity.Injection;
 using Unity.Lifetime;
 using cashout = Sportradar.OddsFeed.SDK.Messages.REST.cashout;
 // ReSharper disable RedundantTypeArgumentsOfMethod
 
+#pragma warning disable CS0618
+
 namespace Sportradar.OddsFeed.SDK.API.Internal
 {
     internal static class UnityFeedBootstrapper
     {
-        private static IMetricsRoot _metricsRoot;
+        private static IMetricsRoot MetricsRoot;
 
         /// <summary>
         /// Registers the base types.
@@ -50,6 +52,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// <param name="userConfig">The user configuration.</param>
         /// <param name="loggerFactory">The logger factory.</param>
         /// <param name="metricsRoot">The metrics root.</param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Critical Vulnerability", "S4423:Weak SSL/TLS protocols should not be used", Justification = "Allowed till all moved to GA")]
         public static void RegisterBaseTypes(this IUnityContainer container, IOddsFeedConfiguration userConfig, ILoggerFactory loggerFactory, IMetricsRoot metricsRoot)
         {
             Guard.Argument(container, nameof(container)).NotNull();
@@ -59,30 +62,23 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
             if (loggerFactory != null)
             {
-                var _ = new SdkLoggerFactory(loggerFactory);
+                SdkLoggerFactory.SetLoggerFactory(loggerFactory);
             }
             var log = SdkLoggerFactory.GetLogger(typeof(UnityFeedBootstrapper));
 
-            if (metricsRoot == null)
-            {
-                _metricsRoot = new MetricsBuilder()
-                    .Configuration.Configure(
-                        options =>
-                        {
-                            options.DefaultContextLabel = "UF SDK .NET Std";
-                            options.Enabled = true;
-                            options.ReportingEnabled = true;
-                        })
-                    .OutputMetrics.AsPlainText()
-                    .Build();
-            }
-            else
-            {
-                _metricsRoot = metricsRoot;
-            }
+            MetricsRoot = metricsRoot ?? new MetricsBuilder()
+                                         .Configuration.Configure(
+                                                                  options =>
+                                                                  {
+                                                                      options.DefaultContextLabel = "UF SDK .NET Std";
+                                                                      options.Enabled = true;
+                                                                      options.ReportingEnabled = true;
+                                                                  })
+                                         .OutputMetrics.AsPlainText()
+                                         .Build();
 
-            container.RegisterInstance(_metricsRoot, new ContainerControlledLifetimeManager());
-            var unused = new SdkMetricsFactory(_metricsRoot);
+            container.RegisterInstance(MetricsRoot, new ContainerControlledLifetimeManager());
+            SdkMetricsFactory.SetMetricsFactory(MetricsRoot);
 
             //register common types
             container.RegisterType<HttpClient, HttpClient>(new ContainerControlledLifetimeManager(), new InjectionFactory(
@@ -97,10 +93,17 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(userConfig.RecoveryHttpClientTimeout) };
                     return httpClient;
                 }));
+            container.RegisterType<ISdkHttpClient, SdkHttpClient>(new ContainerControlledLifetimeManager(),
+                                                                  new InjectionConstructor(
+                                                                                           userConfig.AccessToken,
+                                                                                           new ResolvedParameter<HttpClient>()));
+            container.RegisterType<ISdkHttpClient, SdkHttpClient>("RecoverySdkHttpClient", new ContainerControlledLifetimeManager(),
+                                                                  new InjectionConstructor(
+                                                                                           userConfig.AccessToken,
+                                                                                           new ResolvedParameter<HttpClient>("RecoveryHttpClient")));
 
             var seed = (int)DateTime.Now.Ticks;
-            var rand = new Random(seed);
-            var value = rand.Next();
+            var value = SdkInfo.GetRandom(Math.Abs(seed));
             log.LogInformation($"Initializing sequence generator with MinValue={value}, MaxValue={long.MaxValue}");
             container.RegisterType<ISequenceGenerator, IncrementalSequenceGenerator>(
                 new ContainerControlledLifetimeManager(),
@@ -113,8 +116,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             container.RegisterType<HttpDataFetcher, HttpDataFetcher>(
                 new ContainerControlledLifetimeManager(),
                 new InjectionConstructor(
-                    new ResolvedParameter<HttpClient>(),
-                    userConfig.AccessToken,
+                    new ResolvedParameter<ISdkHttpClient>(),
                     new ResolvedParameter<IDeserializer<response>>(),
                     SdkInfo.RestConnectionFailureLimit,
                     SdkInfo.RestConnectionFailureTimeoutInSec,
@@ -123,8 +125,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             container.RegisterType<LogHttpDataFetcher, LogHttpDataFetcher>(
                 new ContainerControlledLifetimeManager(),
                 new InjectionConstructor(
-                    new ResolvedParameter<HttpClient>(),
-                    userConfig.AccessToken,
+                    new ResolvedParameter<ISdkHttpClient>(),
                     new ResolvedParameter<ISequenceGenerator>(),
                     new ResolvedParameter<IDeserializer<response>>(),
                     SdkInfo.RestConnectionFailureLimit,
@@ -138,8 +139,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                 "RecoveryLogHttpDataFetcher",
                 new ContainerControlledLifetimeManager(),
                 new InjectionConstructor(
-                    new ResolvedParameter<HttpClient>("RecoveryHttpClient"),
-                    userConfig.AccessToken,
+                    new ResolvedParameter<ISdkHttpClient>("RecoverySdkHttpClient"),
                     new ResolvedParameter<ISequenceGenerator>(),
                     new ResolvedParameter<IDeserializer<response>>(),
                     SdkInfo.RestConnectionFailureLimit,
@@ -268,9 +268,9 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             container.RegisterType<IDispatcherStore, DispatcherStore>(new ContainerControlledLifetimeManager());
             container.RegisterType<ISemaphorePool, SemaphorePool>(
                 new ContainerControlledLifetimeManager(),
-                new InjectionConstructor(25, config.ExceptionHandlingStrategy));
+                new InjectionConstructor(500, config.ExceptionHandlingStrategy));
 
-            Func<OddsFeedSession, IEnumerable<string>> func = session => null;
+            Func<OddsFeedSession, IEnumerable<string>> func = _ => null;
 
             container.RegisterType<IOddsFeedSession, OddsFeedSession>(
                 new HierarchicalLifetimeManager(),
@@ -304,9 +304,11 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             RegisterEventChangeManager(container, config);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1175:Unused 'this' parameter.", Justification = "Allowed since exposed to end-user")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Allowed since exposed to end-user")]
         public static void RegisterAdditionalTypes(this IUnityContainer container)
         {
-            RegisterSdkStatisticsWriter(container);
+            // Method intentionally left empty.
         }
 
         private static void RegisterNamedValuesProvider(IUnityContainer container, List<CultureInfo> locales, IOddsFeedConfigurationInternal config)
@@ -393,19 +395,26 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                                                                 var httpClient = new HttpClient { Timeout = OperationManager.FastHttpClientTimeout };
                                                                 return httpClient;
                                                             }));
-
+            container.RegisterType<ISdkHttpClient, SdkHttpClient>("FastSdkHttpClient",
+                                                                      new ContainerControlledLifetimeManager(),
+                                                                      new InjectionConstructor(config.AccessToken,
+                                                                                               new ResolvedParameter<HttpClient>("FastHttpClient")));
+            container.RegisterType<ISdkHttpClient, SdkHttpClientPool>("FastSdkHttpClientPool",
+                                                                      new ContainerControlledLifetimeManager(),
+                                                                      new InjectionConstructor(config.AccessToken,
+                                                                                               SdkInfo.GetMidValue(config.Locales.Count() + 1, 1, 30),
+                                                                                               OperationManager.FastHttpClientTimeout));
             container.RegisterType<LogHttpDataFetcher, LogHttpDataFetcher>(
-                                                                           "FastLogHttpDataFetcher",
-                                                                           new ContainerControlledLifetimeManager(),
+                                                                           "FastLogHttpDataFetcherPool",
+                                                                           new TransientLifetimeManager(),
                                                                            new InjectionConstructor(
-                                                                                                    new ResolvedParameter<HttpClient>("FastHttpClient"),
-                                                                                                    config.AccessToken,
+                                                                                                    config.Locales.Count() == 1
+                                                                                                        ? new ResolvedParameter<ISdkHttpClient>("FastSdkHttpClient")
+                                                                                                        : new ResolvedParameter<ISdkHttpClient>("FastSdkHttpClientPool"),
                                                                                                     new ResolvedParameter<ISequenceGenerator>(),
                                                                                                     new ResolvedParameter<IDeserializer<response>>(),
                                                                                                     SdkInfo.RestConnectionFailureLimit,
                                                                                                     SdkInfo.RestConnectionFailureTimeoutInSec));
-            var fastLogFetcher = container.Resolve<LogHttpDataFetcher>("FastLogHttpDataFetcher");
-            container.RegisterInstance<IDataFetcher>("FastDataFetcher", fastLogFetcher, new ContainerControlledLifetimeManager());
 
             var nodeIdStr = config.NodeId != 0
                                 ? "?node_id=" + config.NodeId
@@ -421,7 +430,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     new ContainerControlledLifetimeManager(),
                     new InjectionConstructor(
                         summaryEndpoint,
-                        new ResolvedParameter<IDataFetcher>("FastDataFetcher"),
+                        new ResolvedParameter<LogHttpDataFetcher>("FastLogHttpDataFetcherPool"),
                         new ResolvedParameter<IDeserializer<RestMessage>>(),
                         new ResolvedParameter<ISingleTypeMapperFactory<RestMessage, SportEventSummaryDTO>>()));
 
@@ -546,7 +555,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     new ContainerControlledLifetimeManager(),
                     new InjectionConstructor(
                         config.ApiBaseUri + "/v1/sports/{1}/players/{0}/profile.xml",
-                        new ResolvedParameter<IDataFetcher>("FastDataFetcher"),
+                        new ResolvedParameter<LogHttpDataFetcher>("FastLogHttpDataFetcherPool"),
                         new ResolvedParameter<IDeserializer<playerProfileEndpoint>>(),
                         new ResolvedParameter<ISingleTypeMapperFactory<playerProfileEndpoint, PlayerProfileDTO>>()));
 
@@ -557,7 +566,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     new ContainerControlledLifetimeManager(),
                     new InjectionConstructor(
                         config.ApiBaseUri + "/v1/sports/{1}/competitors/{0}/profile.xml",
-                        new ResolvedParameter<IDataFetcher>("FastDataFetcher"),
+                        new ResolvedParameter<LogHttpDataFetcher>("FastLogHttpDataFetcherPool"),
                         new ResolvedParameter<IDeserializer<competitorProfileEndpoint>>(),
                         new ResolvedParameter<ISingleTypeMapperFactory<competitorProfileEndpoint, CompetitorProfileDTO>>()));
 
@@ -647,7 +656,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     new ContainerControlledLifetimeManager(),
                     new InjectionConstructor(
                         config.ApiBaseUri + "/v1/descriptions/{1}/markets/{0}/variants/{2}?include_mappings=true",
-                        new ResolvedParameter<IDataFetcher>("FastDataFetcher"),
+                        new ResolvedParameter<LogHttpDataFetcher>("FastLogHttpDataFetcherPool"),
                         new ResolvedParameter<IDeserializer<market_descriptions>>(),
                         new ResolvedParameter<ISingleTypeMapperFactory<market_descriptions, MarketDescriptionDTO>>()));
 
@@ -775,8 +784,9 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     new ResolvedParameter<IDataProvider<DrawDTO>>("drawFixtureProvider"),
                     new ResolvedParameter<IDataProvider<LotteryDTO>>("lotteryScheduleProvider"),
                     new ResolvedParameter<IDataProvider<EntityList<LotteryDTO>>>("lotteryListProvider"),
-                    new ResolvedParameter<IDataProvider<AvailableSelectionsDTO>>(),
+                    new ResolvedParameter<IDataProvider<AvailableSelectionsDto>>(),
                     new ResolvedParameter<ICalculateProbabilityProvider>(),
+                    new ResolvedParameter<ICalculateProbabilityFilteredProvider>(),
                     new ResolvedParameter<IDataProvider<IEnumerable<FixtureChangeDTO>>>(),
                     new ResolvedParameter<IDataProvider<IEnumerable<ResultChangeDTO>>>(),
                     new ResolvedParameter<IDataProvider<EntityList<SportEventSummaryDTO>>>("listSportEventProvider"),
@@ -884,7 +894,8 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     new ResolvedParameter<ISportEventCache>(),
                     new ResolvedParameter<ICacheManager>(),
                     new ResolvedParameter<IFeedMessageHandler>(),
-                    new ResolvedParameter<ISportEventStatusCache>()));
+                    new ResolvedParameter<ISportEventStatusCache>(),
+                    new ResolvedParameter<IProducerManager>()));
 
             container.RegisterFactory<CacheMessageProcessor>(c => c.Resolve<IFeedMessageProcessor>("CacheMessageProcessor"), new HierarchicalLifetimeManager());
         }
@@ -1104,40 +1115,12 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     config));
         }
 
-        private static void RegisterSdkStatisticsWriter(IUnityContainer container)
-        {
-            //this invokes LoadProducers - it must not
-            //var statusProviders = new List<IHealthStatusProvider>
-            //{
-            //    container.Resolve<LogHttpDataFetcher>(),
-            //    container.Resolve<ISportEventCache>(),
-            //    container.Resolve<ISportDataCache>(),
-            //    container.Resolve<IMarketDescriptionCache>("InvariantMarketDescriptionsCache"),
-            //    container.Resolve<IMarketDescriptionCache>("VariantMarketDescriptionCache"),
-            //    container.Resolve<IVariantDescriptionCache>("VariantDescriptionListCache"),
-            //    container.Resolve<IProfileCache>(),
-            //    container.Resolve<ISportEventStatusCache>()
-            //};
-
-            //foreach (var sp in statusProviders)
-            //{
-            //    sp.RegisterHealthCheck();
-            //}
-        }
-
         private static void RegisterReplayManager(IUnityContainer container, IOddsFeedConfigurationInternal config)
         {
-            container.RegisterType<IDataRestful, HttpDataRestful>(new ContainerControlledLifetimeManager(),
-                new InjectionConstructor(
-                    new ResolvedParameter<HttpClient>(),
-                    config.AccessToken,
-                    new ResolvedParameter<IDeserializer<response>>(),
-                    SdkInfo.RestConnectionFailureLimit,
-                    SdkInfo.RestConnectionFailureTimeoutInSec));
+            var sdkHtpClient = container.Resolve<ISdkHttpClient>();
             object[] argsRest =
             {
-                new HttpClient {Timeout = TimeSpan.FromSeconds(config.HttpClientTimeout)},
-                config.AccessToken,
+                sdkHtpClient,
                 new Deserializer<response>(),
                 SdkInfo.RestConnectionFailureLimit,
                 SdkInfo.RestConnectionFailureTimeoutInSec
@@ -1160,7 +1143,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                 config.NodeId
             };
 
-            var proxyReplayManager = LogInterceptorFactory.Create<ReplayManager>(args, m => m.Name.Contains("e"), LoggerType.ClientInteraction);
+            var proxyReplayManager = LogInterceptorFactory.Create<ReplayManager>(args, m => m.Name.Contains('e'), LoggerType.ClientInteraction);
             container.RegisterInstance<IReplayManager>(proxyReplayManager);
         }
 
@@ -1169,9 +1152,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             container.RegisterType<FeedSystemSession, FeedSystemSession>(
                 new ContainerControlledLifetimeManager(),
                 new InjectionConstructor(
-                    new ResolvedParameter<IGlobalEventDispatcher>(),
                     new ResolvedParameter<IMessageReceiver>(),
-                    new ResolvedParameter<IFeedMessageMapper>(),
                     new ResolvedParameter<IFeedMessageValidator>(),
                     new ResolvedParameter<IMessageDataExtractor>()));
         }
@@ -1181,24 +1162,34 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             container.RegisterType<ICustomBetSelectionBuilder, CustomBetSelectionBuilder>(new ContainerControlledLifetimeManager());
 
             container.RegisterType<IDeserializer<AvailableSelectionsType>, Deserializer<AvailableSelectionsType>>(new ContainerControlledLifetimeManager());
-            container.RegisterType<ISingleTypeMapperFactory<AvailableSelectionsType, AvailableSelectionsDTO>, AvailableSelectionsMapperFactory>(new ContainerControlledLifetimeManager());
-            container.RegisterType<IDataProvider<AvailableSelectionsDTO>, DataProvider<AvailableSelectionsType, AvailableSelectionsDTO>>(
+            container.RegisterType<ISingleTypeMapperFactory<AvailableSelectionsType, AvailableSelectionsDto>, AvailableSelectionsMapperFactory>(new ContainerControlledLifetimeManager());
+            container.RegisterType<IDataProvider<AvailableSelectionsDto>, DataProvider<AvailableSelectionsType, AvailableSelectionsDto>>(
                 new ContainerControlledLifetimeManager(),
                 new InjectionConstructor(
                     config.ApiBaseUri + "/v1/custombet/{0}/available_selections",
                     new ResolvedParameter<IDataFetcher>(),
                     new ResolvedParameter<IDeserializer<AvailableSelectionsType>>(),
-                    new ResolvedParameter<ISingleTypeMapperFactory<AvailableSelectionsType, AvailableSelectionsDTO>>()));
+                    new ResolvedParameter<ISingleTypeMapperFactory<AvailableSelectionsType, AvailableSelectionsDto>>()));
 
             container.RegisterType<IDeserializer<CalculationResponseType>, Deserializer<CalculationResponseType>>(new ContainerControlledLifetimeManager());
-            container.RegisterType<ISingleTypeMapperFactory<CalculationResponseType, CalculationDTO>, CalculationMapperFactory>(new ContainerControlledLifetimeManager());
+            container.RegisterType<ISingleTypeMapperFactory<CalculationResponseType, CalculationDto>, CalculationMapperFactory>(new ContainerControlledLifetimeManager());
             container.RegisterType<ICalculateProbabilityProvider, CalculateProbabilityProvider>(
                 new ContainerControlledLifetimeManager(),
                 new InjectionConstructor(
                     config.ApiBaseUri + "/v1/custombet/calculate",
                     new ResolvedParameter<IDataPoster>(),
                     new ResolvedParameter<IDeserializer<CalculationResponseType>>(),
-                    new ResolvedParameter<ISingleTypeMapperFactory<CalculationResponseType, CalculationDTO>>()));
+                    new ResolvedParameter<ISingleTypeMapperFactory<CalculationResponseType, CalculationDto>>()));
+
+            container.RegisterType<IDeserializer<FilteredCalculationResponseType>, Deserializer<FilteredCalculationResponseType>>(new ContainerControlledLifetimeManager());
+            container.RegisterType<ISingleTypeMapperFactory<FilteredCalculationResponseType, FilteredCalculationDto>, CalculationFilteredMapperFactory>(new ContainerControlledLifetimeManager());
+            container.RegisterType<ICalculateProbabilityFilteredProvider, CalculateProbabilityFilteredProvider>(
+                                                                                                new ContainerControlledLifetimeManager(),
+                                                                                                new InjectionConstructor(
+                                                                                                 config.ApiBaseUri + "/v1/custombet/calculate-filter",
+                                                                                                 new ResolvedParameter<IDataPoster>(),
+                                                                                                 new ResolvedParameter<IDeserializer<FilteredCalculationResponseType>>(),
+                                                                                                 new ResolvedParameter<ISingleTypeMapperFactory<FilteredCalculationResponseType, FilteredCalculationDto>>()));
 
             container.RegisterType<ICustomBetManager, CustomBetManager>(
                 new ContainerControlledLifetimeManager(),

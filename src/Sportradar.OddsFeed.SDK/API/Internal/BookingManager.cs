@@ -2,8 +2,8 @@
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
 using System;
-using Dawn;
 using System.Globalization;
+using Dawn;
 using Microsoft.Extensions.Logging;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Exceptions;
@@ -74,11 +74,11 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             }
             catch (CommunicationException ce)
             {
-                _executionLog.LogWarning($"Event[{eventId}] booking failed, CommunicationException: {ce.Message}");
+                _executionLog.LogWarning(ce, $"Event[{eventId}] booking failed, CommunicationException: {ce.Message}");
             }
             catch (Exception e)
             {
-                _executionLog.LogWarning($"Event[{eventId}] booking failed.", e);
+                _executionLog.LogWarning(e, $"Event[{eventId}] booking failed.");
             }
 
             return false;

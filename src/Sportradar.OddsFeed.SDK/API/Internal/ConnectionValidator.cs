@@ -2,11 +2,11 @@
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
 using System;
-using Dawn;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Dawn;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal;
 
 namespace Sportradar.OddsFeed.SDK.API.Internal
@@ -46,47 +46,43 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         /// <returns>A <see cref="ConnectionValidationResult"/> enum member specifying the result of validation.</returns>
         public ConnectionValidationResult ValidateConnection()
         {
-            using (var client = new TcpClient())
+            using var client = new TcpClient();
+            try
             {
-                try
-                {
-                    client.Connect(_config.ApiHost, _config.UseApiSsl ? 443 : 80);
-                }
-                catch (SocketException ex)
-                {
-                    if (ex.ErrorCode == 10060)
-                    {
-                        return ConnectionValidationResult.ConnectionRefused;
-                    }
-                    return ex.ErrorCode >= 11001 && ex.ErrorCode <= 11004
-                        ? ConnectionValidationResult.NoInternetConnection
-                        : ConnectionValidationResult.Unknown;
-                }
-                return ConnectionValidationResult.Success;
+                client.Connect(_config.ApiHost, _config.UseApiSsl ? 443 : 80);
             }
+            catch (SocketException ex)
+            {
+                if (ex.ErrorCode == 10060)
+                {
+                    return ConnectionValidationResult.ConnectionRefused;
+                }
+                return ex.ErrorCode >= 11001 && ex.ErrorCode <= 11004
+                           ? ConnectionValidationResult.NoInternetConnection
+                           : ConnectionValidationResult.Unknown;
+            }
+            return ConnectionValidationResult.Success;
         }
 
         /// <summary>
         /// Gets the public IP of the current machine
         /// </summary>
         /// <returns>A <see cref="IPAddress"/> representing the IP of the current machine or a null reference or a null reference if public IP could not be determined.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Ok")]
         public IPAddress GetPublicIp()
         {
             string data;
 
             try
             {
-                var stream = _dataFetcher.GetDataAsync(new Uri("http://ipecho.net/plain")).Result;
-                using (var reader = new StreamReader(stream, Encoding.UTF8))
-                {
-                    data = reader.ReadToEnd();
-                }
+                var stream = _dataFetcher.GetDataAsync(new Uri("https://ipecho.net/plain")).Result;
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                data = reader.ReadToEnd();
             }
             catch (AggregateException)
             {
                 return null;
             }
-
 
             return IPAddress.TryParse(data, out var address)
                        ? address

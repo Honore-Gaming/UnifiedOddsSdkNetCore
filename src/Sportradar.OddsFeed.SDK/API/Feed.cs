@@ -1,6 +1,14 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using App.Metrics;
 using App.Metrics.Formatters.Ascii;
 using App.Metrics.Formatters.Json.Extensions;
@@ -21,14 +29,6 @@ using Sportradar.OddsFeed.SDK.Entities;
 using Sportradar.OddsFeed.SDK.Entities.Internal;
 using Sportradar.OddsFeed.SDK.Entities.REST;
 using Sportradar.OddsFeed.SDK.Messages;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Unity;
 using Unity.Resolution;
 
@@ -333,7 +333,7 @@ namespace Sportradar.OddsFeed.SDK.API
         }
 
         /// <summary>
-        /// Option to change/update dependency injection before resolving resources     
+        /// Option to change/update dependency injection before resolving resources
         /// </summary>
         protected virtual void UpdateDependency() { }
 
@@ -389,7 +389,7 @@ namespace Sportradar.OddsFeed.SDK.API
             }
             catch (Exception ex)
             {
-                _log.LogWarning($"Error happened during closing feed. Exception: {ex}");
+                _log.LogWarning(ex, $"Error happened during closing feed.");
 
                 if (InternalConfig.ExceptionHandlingStrategy == ExceptionHandlingStrategy.THROW)
                 {
@@ -542,63 +542,6 @@ namespace Sportradar.OddsFeed.SDK.API
         }
 
         /// <summary>
-        /// Closes the current <see cref="Feed"/> instance and disposes resources used by it
-        /// </summary>
-        public void Close()
-        {
-            Dispose();
-        }
-
-        /// <summary>
-        /// Disposes the current instance and resources associated with it
-        /// </summary>
-        /// <param name="disposing">Value indicating whether the managed resources should also be disposed</param>
-        protected virtual void Dispose(bool disposing)
-        {
-            if (_isDisposed)
-            {
-                return;
-            }
-
-            if (_connectionFactory != null)
-            {
-                DetachFromConnectionEvents();
-            }
-
-            if (_feedRecoveryManager != null)
-            {
-                _feedRecoveryManager.ProducerDown -= MarkProducerAsDown;
-                _feedRecoveryManager.ProducerUp -= MarkProducerAsUp;
-                _feedRecoveryManager.CloseFeed -= OnCloseFeed;
-                _feedRecoveryManager.EventRecoveryCompleted -= OnEventRecoveryCompleted;
-                _feedRecoveryManager.Close();
-            }
-
-            _metricsTaskScheduler?.Dispose();
-
-            foreach (var session in Sessions)
-            {
-                session.Close();
-            }
-
-            EventChangeManager.Stop();
-
-            if (disposing)
-            {
-                try
-                {
-                    UnityContainer.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    _log.LogWarning(ex, "An exception has occurred while disposing the feed instance. Exception: ");
-                }
-            }
-
-            _isDisposed = true;
-        }
-
-        /// <summary>
         /// Opens the current feed by opening all created sessions
         /// </summary>
         /// <exception cref="ObjectDisposedException"></exception>
@@ -708,6 +651,69 @@ namespace Sportradar.OddsFeed.SDK.API
                 Interlocked.CompareExchange(ref _opened, 0, 1);
                 throw;
             }
+        }
+
+        /// <inheritdoc />
+        public bool IsOpen()
+        {
+            return _opened == 1;
+        }
+
+        /// <summary>
+        /// Closes the current <see cref="Feed"/> instance and disposes resources used by it
+        /// </summary>
+        public void Close()
+        {
+            Dispose();
+        }
+
+        /// <summary>
+        /// Disposes the current instance and resources associated with it
+        /// </summary>
+        /// <param name="disposing">Value indicating whether the managed resources should also be disposed</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            if (_connectionFactory != null)
+            {
+                DetachFromConnectionEvents();
+            }
+
+            if (_feedRecoveryManager != null)
+            {
+                _feedRecoveryManager.ProducerDown -= MarkProducerAsDown;
+                _feedRecoveryManager.ProducerUp -= MarkProducerAsUp;
+                _feedRecoveryManager.CloseFeed -= OnCloseFeed;
+                _feedRecoveryManager.EventRecoveryCompleted -= OnEventRecoveryCompleted;
+                _feedRecoveryManager.Close();
+            }
+
+            _metricsTaskScheduler?.Dispose();
+
+            foreach (var session in Sessions)
+            {
+                session.Close();
+            }
+
+            EventChangeManager.Stop();
+
+            if (disposing)
+            {
+                try
+                {
+                    UnityContainer.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "An exception has occurred while disposing the feed instance.");
+                }
+            }
+
+            _isDisposed = true;
         }
 
         private void AttachToConnectionEvents()

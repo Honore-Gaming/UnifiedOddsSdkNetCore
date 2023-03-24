@@ -1,16 +1,17 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Threading.Tasks;
+using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Entities.REST.CustomBet;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching.Events;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.Lottery;
 using Sportradar.OddsFeed.SDK.Messages;
 using Sportradar.OddsFeed.SDK.Messages.EventArguments;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Threading.Tasks;
 
 namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
 {
@@ -23,6 +24,11 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         /// Occurs when data from Sports API arrives
         /// </summary>
         event EventHandler<RawApiDataEventArgs> RawApiDataReceived;
+
+        /// <summary>
+        /// The exception handling strategy
+        /// </summary>
+        ExceptionHandlingStrategy ExceptionHandlingStrategy { get; }
 
         /// <summary>
         /// Gets the <see cref="SportEventSummaryDTO"/> or its derived type from the summary endpoint
@@ -141,18 +147,18 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         /// <summary>
         /// Gets the <see cref="DrawDTO"/> from lottery draw summary endpoint
         /// </summary>
-        /// <param name="drawId">The id of the draw to be fetched</param>
+        /// <param name="id">The id of the draw to be fetched</param>
         /// <param name="culture">The language to be fetched</param>
         /// <param name="requester">The cache item which invoked request</param>
-        Task GetDrawSummaryAsync(URN drawId, CultureInfo culture, ISportEventCI requester);
+        Task GetDrawSummaryAsync(URN id, CultureInfo culture, ISportEventCI requester);
 
         /// <summary>
         /// Gets the <see cref="DrawDTO"/> from the lottery draw fixture endpoint
         /// </summary>
-        /// <param name="drawId">The id of the draw to be fetched</param>
+        /// <param name="id">The id of the draw to be fetched</param>
         /// <param name="culture">The language to be fetched</param>
         /// <param name="requester">The cache item which invoked request</param>
-        Task GetDrawFixtureAsync(URN drawId, CultureInfo culture, ISportEventCI requester);
+        Task GetDrawFixtureAsync(URN id, CultureInfo culture, ISportEventCI requester);
 
         /// <summary>
         /// Gets the lottery draw schedule
@@ -184,7 +190,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
         /// </summary>
         /// <param name="selections">The <see cref="IEnumerable{ISelection}"/> containing selections for which the probability should be calculated</param>
         /// <returns>The probability calculation for the specified selections</returns>
-        Task<ICalculation> CalculateProbability(IEnumerable<ISelection> selections);
+        Task<ICalculation> CalculateProbabilityAsync(IEnumerable<ISelection> selections);
+
+        /// <summary>
+        /// Gets the probability calculation for the specified selections (filtered)
+        /// </summary>
+        /// <param name="selections">The <see cref="IEnumerable{ISelection}"/> containing selections for which the probability should be calculated</param>
+        /// <returns>The probability calculation for the specified selections</returns>
+        Task<ICalculationFilter> CalculateProbabilityFilteredAsync(IEnumerable<ISelection> selections);
 
         /// <summary>
         /// Gets the list of all fixtures that have changed in the last 24 hours

@@ -1,15 +1,16 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
-using Castle.Core.Internal;
-using Microsoft.Extensions.Logging;
-using Sportradar.OddsFeed.SDK.Entities.REST.Market;
-using Sportradar.OddsFeed.SDK.Messages;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
+using Castle.Core.Internal;
+using Microsoft.Extensions.Logging;
+using Sportradar.OddsFeed.SDK.Entities.REST.Market;
+using Sportradar.OddsFeed.SDK.Messages;
 
 namespace Sportradar.OddsFeed.SDK.Common.Internal
 {
@@ -23,6 +24,10 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         /// </summary>
         public static readonly ILogger ExecutionLog = SdkLoggerFactory.GetLoggerForExecution(typeof(SdkInfo));
 
+        /// <summary>
+        /// The type of the sdk
+        /// </summary>
+        public const string SdkType = "NETStd";
         /// <summary>
         /// The unknown producer identifier
         /// </summary>
@@ -153,6 +158,10 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         /// The soccer sport urns
         /// </summary>
         public static readonly IReadOnlyCollection<URN> SoccerSportUrns = new[] { URN.Parse("sr:sport:1"), URN.Parse("sr:sport:137") };
+        /// <summary>
+        /// The date when it was created
+        /// </summary>
+        public static readonly DateTime Created = DateTime.Now;
 
         /// <summary>
         /// Gets the assembly version number
@@ -180,7 +189,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         /// <summary>
         /// Convert long epoch time to DateTime
         /// </summary>
-        /// <param name="epochTime">The unix time</param>
+        /// <param name="epochTime">The Unix time</param>
         /// <returns>DateTime</returns>
         public static DateTime FromEpochTime(long epochTime)
         {
@@ -191,7 +200,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         /// <summary>
         /// Convert long epoch time to DateTime
         /// </summary>
-        /// <param name="epochTime">The unix time</param>
+        /// <param name="epochTime">The Unix time</param>
         /// <returns>DateTime</returns>
         public static DateTime? TryFromEpochTime(long epochTime)
         {
@@ -200,7 +209,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
                 var dateTime = FromEpochTime(epochTime);
                 return dateTime;
             }
-            catch (Exception)
+            catch
             {
                 //ignored
             }
@@ -294,7 +303,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
             {
                 return null;
             }
-            return name.Length > length ? name.Substring(0, length).ToUpper() : name.ToUpper();
+            return name.Length > length ? name.Substring(0, length).ToUpperInvariant() : name.ToUpperInvariant();
         }
 
         /// <summary>
@@ -355,12 +364,42 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         }
 
         /// <summary>
+        /// List of specifiers as string
+        /// </summary>
+        /// <param name="specifiers">The specifiers.</param>
+        /// <returns>Dictionary of specifiers</returns>
+        public static IDictionary<string, string> SpecifiersStringToDictionary(string specifiers)
+        {
+            var result = new Dictionary<string, string>();
+            if (specifiers.IsNullOrEmpty())
+            {
+                return result;
+            }
+            var specs = specifiers.Split('|');
+            foreach (var spec in specs)
+            {
+                var specKeyValue = spec.Split("=");
+                result.Add(specKeyValue[0], specKeyValue[1]);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Gets the fixed length unique identifier
         /// </summary>
-        /// <param name="length">The length of the returned string</param>
+        /// <param name="length">The length of the returned string (min 3)</param>
         /// <param name="containDash">if set to <c>true</c> [contain dash].</param>
         public static string GetGuid(int length, bool containDash = false)
         {
+            if (length < 3)
+            {
+                length = 3;
+            }
+            else if (length > 20)
+            {
+                length = 20;
+            }
+
             var g = Guid.NewGuid().ToString();
 
             if (!containDash)
@@ -368,7 +407,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
                 g = g.Replace("-", string.Empty);
             }
 
-            if (length > 0 && length < g.Length)
+            if (length < g.Length)
             {
                 g = g.Substring(0, length);
             }
@@ -438,9 +477,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
             var start = (100 - variablePercent) / (double)100 * baseValue;
             var end = (100 + variablePercent) / (double)100 * baseValue;
 
-            var r = new Random(Environment.TickCount);
-
-            return r.Next((int)start, (int)end);
+            return GetRandom((int)start, (int)end);
         }
 
         /// <summary>
@@ -475,8 +512,7 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
 
             var end = (100 + variablePercent) / (double)100 * baseValue;
 
-            var r = new Random(Environment.TickCount);
-            return r.Next(baseValue, (int)end);
+            return GetRandom(baseValue, (int)end);
         }
 
         /// <summary>
@@ -489,6 +525,82 @@ namespace Sportradar.OddsFeed.SDK.Common.Internal
         {
             var newValue = AddVariableNumber(Convert.ToInt32(baseValue.TotalSeconds), variablePercent);
             return TimeSpan.FromSeconds(newValue);
+        }
+
+        /// <summary>
+        /// Get the feed message age; how behind is at the time of consuming by the sdk
+        /// </summary>
+        /// <param name="generatedAt">The generatedAt timestamp from the message</param>
+        /// <param name="receivedAt">The timestamp when message consumed by the sdk</param>
+        /// <returns>The difference in ms</returns>
+        public static long GetMessageAge(long generatedAt, long receivedAt)
+        {
+            var age = receivedAt - generatedAt;
+            if (age < 0)
+            {
+                age = 0;
+            }
+            return age;
+        }
+
+        /// <summary>
+        /// Get the feed message age; how behind is at the time of consuming by the sdk (calculated via DateTime)
+        /// </summary>
+        /// <param name="generatedAt">The generatedAt timestamp from the message</param>
+        /// <param name="receivedAt">The timestamp when message consumed by the sdk</param>
+        /// <returns>The difference in ms</returns>
+        public static long GetMessageAge2(long generatedAt, long receivedAt)
+        {
+            var age = FromEpochTime(receivedAt) - FromEpochTime(generatedAt);
+            if (receivedAt < generatedAt)
+            {
+                age = TimeSpan.Zero;
+            }
+            return (long)age.TotalMilliseconds;
+        }
+
+        public static int GetRandom(int maxValue = int.MaxValue)
+        {
+            if (maxValue < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxValue), $"{maxValue} not valid. Must be 0 or greater.");
+            }
+            if (maxValue == 0)
+            {
+                maxValue = int.MaxValue;
+            }
+            return RandomNumberGenerator.GetInt32(maxValue);
+        }
+
+        public static int GetRandom(int minValue, int maxValue)
+        {
+            if (maxValue < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxValue), $"{maxValue} not valid. Must be 0 or greater.");
+            }
+            if (maxValue == 0)
+            {
+                maxValue = int.MaxValue;
+            }
+
+            if (minValue > maxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(minValue), $"{minValue} not valid. Must be less then {maxValue}.");
+            }
+            return RandomNumberGenerator.GetInt32(minValue, maxValue);
+        }
+
+        public static int GetMidValue(int initialValue, int minValue = 0, int maxValue = int.MaxValue)
+        {
+            if (initialValue < minValue)
+            {
+                return minValue;
+            }
+            if (initialValue > maxValue)
+            {
+                return maxValue;
+            }
+            return initialValue;
         }
     }
 }

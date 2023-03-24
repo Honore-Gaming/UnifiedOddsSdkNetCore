@@ -58,6 +58,10 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
             {
                 throw new ArgumentNullException(nameof(invariantMarketDescriptionCache));
             }
+            if (!(invariantMarketDescriptionCache is InvariantMarketDescriptionCache cache))
+            {
+                throw new ArgumentException("Missing invariant market description cache", nameof(invariantMarketDescriptionCache));
+            }
             if (variantDescriptionCache == null)
             {
                 throw new ArgumentNullException(nameof(variantDescriptionCache));
@@ -65,15 +69,10 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
             _config = config;
             _marketCacheProvider = marketCacheProvider;
-            _invariantMarketDescriptionCache = invariantMarketDescriptionCache as InvariantMarketDescriptionCache;
+            _invariantMarketDescriptionCache = cache;
             _variantDescriptionListCache = variantDescriptionListCache;
             _exceptionHandlingStrategy = config.ExceptionHandlingStrategy;
             _variantDescriptionCache = variantDescriptionCache;
-
-            if (_invariantMarketDescriptionCache == null)
-            {
-                throw new ArgumentException(nameof(invariantMarketDescriptionCache));
-            }
         }
 
         /// <summary>
@@ -84,11 +83,8 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
         {
             try
             {
-                if (culture == null)
-                {
-                    culture = _config.DefaultLocale;
-                }
-                return await _invariantMarketDescriptionCache.GetAllInvariantMarketDescriptionsAsync(new[] {culture}).ConfigureAwait(false);
+                culture ??= _config.DefaultLocale;
+                return await _invariantMarketDescriptionCache.GetAllInvariantMarketDescriptionsAsync(new[] { culture }).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -97,7 +93,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     throw new ObjectNotFoundException($"Market descriptions({culture}) could not be provided", ex);
                 }
 
-                _executionLog.LogWarning($"Market descriptions with the {culture} locale could not be provided", ex);
+                _executionLog.LogWarning(ex, $"Market descriptions with the {culture} locale could not be provided");
                 return null;
             }
         }
@@ -137,7 +133,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
                     throw new ObjectNotFoundException($"Market mappings for {marketId} could not be provided{specifiersMessage}", ex);
                 }
 
-                _executionLog.LogWarning($"Market mappings for the marketId: {marketId} could not be provided{specifiersMessage}", ex);
+                _executionLog.LogWarning(ex, $"Market mappings for the marketId: {marketId} could not be provided{specifiersMessage}");
                 return null;
             }
 
@@ -159,7 +155,7 @@ namespace Sportradar.OddsFeed.SDK.API.Internal
 
             await Task.WhenAll(tasks).ConfigureAwait(false);
 
-            return tasks.All(a=>a.Result);
+            return tasks.All(a => a.Result);
         }
 
         /// <summary>

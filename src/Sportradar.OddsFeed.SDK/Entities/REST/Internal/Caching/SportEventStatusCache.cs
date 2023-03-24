@@ -1,6 +1,13 @@
 /*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Runtime.Caching;
+using System.Threading;
+using System.Threading.Tasks;
 using App.Metrics;
 using App.Metrics.Health;
 using App.Metrics.Timer;
@@ -14,13 +21,6 @@ using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Enums;
 using Sportradar.OddsFeed.SDK.Entities.REST.Internal.Mapping;
 using Sportradar.OddsFeed.SDK.Messages;
 using Sportradar.OddsFeed.SDK.Messages.Feed;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Runtime.Caching;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
 {
@@ -87,7 +87,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
         }
 
         /// <summary>
-        /// Gets the cached <see cref="SportEventStatusCI" /> instance associated with the sport event specified by the <code>eventId</code>. If the instance associated
+        /// Gets the cached <see cref="SportEventStatusCI" /> instance associated with the sport event specified by the <c>eventId</c>. If the instance associated
         /// with the specified event is not found, it tries to obtain it via API, if still cant, a <see cref="SportEventStatusCI" /> instance indicating a 'not started' event is returned.
         /// </summary>
         /// <param name="eventId">A <see cref="URN" /> representing the id of the sport event whose status to get</param>
@@ -116,8 +116,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
                         return (SportEventStatusCI)item;
                     }
 
-                    var cachedEvent = _sportEventCache.GetEventCacheItem(eventId) as ICompetitionCI;
-                    if (cachedEvent != null)
+                    if (_sportEventCache.GetEventCacheItem(eventId) is ICompetitionCI cachedEvent)
                     {
                         await cachedEvent.FetchSportEventStatusAsync().ConfigureAwait(false);
                     }
@@ -223,6 +222,8 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
         /// </summary>
         public void RegisterHealthCheck()
         {
+            // Method intentionally left empty.
+            // currently not supported
         }
 
         /// <summary>
@@ -295,23 +296,15 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
             return result;
         }
 
-        /// <summary>
-        /// Adds the dto item to cache
-        /// </summary>
-        /// <param name="id">The identifier of the object</param>
-        /// <param name="item">The item</param>
-        /// <param name="culture">The culture</param>
-        /// <param name="dtoType">Type of the dto</param>
-        /// <param name="requester">The cache item which invoked request</param>
-        /// <returns><c>true</c> if added, <c>false</c> otherwise</returns>
-        protected override bool CacheAddDtoItem(URN id, object item, CultureInfo culture, DtoType dtoType, ISportEventCI requester)
+        /// <inheritdoc />
+        protected override Task<bool> CacheAddDtoItemAsync(URN id, object item, CultureInfo culture, DtoType dtoType, ISportEventCI requester)
         {
             Guard.Argument(id, nameof(id)).NotNull();
             Guard.Argument(item, nameof(item)).NotNull();
 
             if (_isDisposed)
             {
-                return false;
+                return Task.FromResult(false);
             }
 
             var saved = false;
@@ -461,11 +454,15 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.Caching
                     break;
                 case DtoType.TournamentInfoList:
                     break;
+                case DtoType.PeriodSummary:
+                    break;
+                case DtoType.Calculation:
+                    break;
                 default:
                     ExecutionLog.LogWarning($"Trying to add unchecked dto type: {dtoType} for id: {id}.");
                     break;
             }
-            return saved;
+            return Task.FromResult(saved);
         }
 
         /// <summary>

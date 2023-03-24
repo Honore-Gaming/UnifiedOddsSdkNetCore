@@ -1,24 +1,23 @@
 ﻿/*
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
 using App.Metrics;
-using App.Metrics.Meter;
-using App.Metrics.Timer;
 using Dawn;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client.Events;
 using Sportradar.OddsFeed.SDK.Common;
 using Sportradar.OddsFeed.SDK.Common.Exceptions;
 using Sportradar.OddsFeed.SDK.Common.Internal;
+using Sportradar.OddsFeed.SDK.Common.Internal.Metrics;
 using Sportradar.OddsFeed.SDK.Entities.Internal.EventArguments;
 using Sportradar.OddsFeed.SDK.Messages;
 using Sportradar.OddsFeed.SDK.Messages.EventArguments;
 using Sportradar.OddsFeed.SDK.Messages.Feed;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace Sportradar.OddsFeed.SDK.Entities.Internal
 {
@@ -114,7 +113,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// </summary>
         /// <param name="sender">The <see cref="object"/> representation of the event sender</param>
         /// <param name="eventArgs">A <see cref="BasicDeliverEventArgs"/> containing event information</param>
-        private void consumer_OnReceived(object sender, BasicDeliverEventArgs eventArgs)
+        private void Consumer_OnReceived(object sender, BasicDeliverEventArgs eventArgs)
         {
             if (eventArgs.Body.IsEmpty)
             {
@@ -133,14 +132,14 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
             string messageName;
             try
             {
-                using (var t = SdkMetricsFactory.MetricsRoot.Measure.Timer.Time(new TimerOptions { Context = "FEED", Name = "Message deserialization time", MeasurementUnit = Unit.Items }))
+                using (var t = SdkMetricsFactory.MetricsRoot.Measure.Timer.Time(MetricsSettings.TimerMessageDeserialize))
                 {
                     t.TrackUserValue(eventArgs.RoutingKey);
                     messageBody = Encoding.UTF8.GetString(bodyBytes);
                     feedMessage = _deserializer.Deserialize(new MemoryStream(bodyBytes));
                     producer = _producerManager.Get(feedMessage.ProducerId);
                     messageName = feedMessage.GetType().Name;
-                    if (!string.IsNullOrEmpty(feedMessage.EventId) && URN.TryParse(feedMessage.EventId, out URN eventUrn))
+                    if (!string.IsNullOrEmpty(feedMessage.EventId) && URN.TryParse(feedMessage.EventId, out var eventUrn))
                     {
                         feedMessage.EventURN = eventUrn;
                     }
@@ -186,19 +185,19 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
                                              : feedMessage.GeneratedAt;
                 }
                 feedMessage.ReceivedAt = receivedAt;
-                SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(new MeterOptions { Context = "FEED", Name = "Message received" }, MetricTags.Empty, messageName);
+                SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(MetricsSettings.MeterMessageConsume, MetricTags.Empty, messageName);
             }
             catch (DeserializationException ex)
             {
                 ExecutionLog.LogError(ex, $"Failed to parse message. RoutingKey={eventArgs.RoutingKey} Message: {messageBody}");
-                SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(new MeterOptions { Context = "FEED", Name = "Message deserialization exception" }, MetricTags.Empty, eventArgs.RoutingKey);
+                SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(MetricsSettings.MeterMessageDeserializeException, MetricTags.Empty, eventArgs.RoutingKey);
                 RaiseDeserializationFailed(bodyBytes);
                 return;
             }
             catch (Exception ex)
             {
                 ExecutionLog.LogError(ex, $"Error consuming feed message. RoutingKey={eventArgs.RoutingKey} Message: {messageBody}");
-                SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(new MeterOptions { Context = "FEED", Name = "Exception consuming feed message" }, MetricTags.Empty, eventArgs.RoutingKey);
+                SdkMetricsFactory.MetricsRoot.Measure.Meter.Mark(MetricsSettings.MeterMessageConsumeException, MetricTags.Empty, eventArgs.RoutingKey);
                 RaiseDeserializationFailed(bodyBytes);
                 return;
             }
@@ -206,11 +205,13 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
             // send RawFeedMessage if needed
             try
             {
-                if (producer.IsAvailable && !producer.IsDisabled)
+                if (producer.IsAvailable && !producer.IsDisabled && RawFeedMessageReceived != null)
                 {
-                    //ExecutionLog.LogDebug($"Raw msg [{_interest}]: {feedMessage.GetType().Name} for event {feedMessage.EventId}.");
-                    var args = new RawFeedMessageEventArgs(eventArgs.RoutingKey, feedMessage, sessionName);
-                    RawFeedMessageReceived?.Invoke(this, args);
+                    using (SdkMetricsFactory.MetricsRoot.Measure.Timer.Time(MetricsSettings.TimerRawFeedDataDispatch, MetricTags.Empty, eventArgs.RoutingKey))
+                    {
+                        var args = new RawFeedMessageEventArgs(eventArgs.RoutingKey, feedMessage, sessionName);
+                        RawFeedMessageReceived?.Invoke(this, args);
+                    }
                 }
             }
             catch (Exception e)
@@ -265,6 +266,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             Guard.Argument(message, nameof(message)).NotNull();
 
+            //no need to add interest, it is later used from session interest
             FeedMessageReceived?.Invoke(this, new FeedMessageReceivedEventArgs(message, null, rawMessage));
         }
 
@@ -277,7 +279,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         {
             _interest = interest;
             _channel.Open(interest, routingKeys);
-            _channel.Received += consumer_OnReceived;
+            _channel.Received += Consumer_OnReceived;
         }
 
         /// <summary>
@@ -285,7 +287,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.Internal
         /// </summary>
         public void Close()
         {
-            _channel.Received -= consumer_OnReceived;
+            _channel.Received -= Consumer_OnReceived;
             _channel.Close();
         }
     }

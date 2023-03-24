@@ -17,17 +17,20 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.EntitiesImpl.CustomBet
         /// <summary>
         /// Initializes a new instance of the <see cref="AvailableSelections"/> class
         /// </summary>
-        /// <param name="availableSelections">a <see cref="AvailableSelectionsDTO"/> representing the available selections</param>
-        internal AvailableSelections(AvailableSelectionsDTO availableSelections)
+        /// <param name="availableSelections">a <see cref="AvailableSelectionsDto"/> representing the available selections</param>
+        internal AvailableSelections(AvailableSelectionsDto availableSelections)
         {
             if (availableSelections == null)
+            {
                 throw new ArgumentNullException(nameof(availableSelections));
+            }
 
             Event = availableSelections.Event;
-            Markets = availableSelections.Markets.Select(m => new Market(m)).ToList().AsReadOnly();
+            Markets = availableSelections.Markets.Select(m => new Market(m));
         }
 
         public URN Event { get; }
+
         public IEnumerable<REST.CustomBet.IMarket> Markets { get; }
     }
 }

@@ -14,10 +14,10 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal
     internal interface ICalculateProbabilityProvider
     {
         /// <summary>
-        /// Asynchronously gets a <see cref="CalculationDTO"/> instance
+        /// Asynchronously gets a <see cref="CalculationDto"/> instance
         /// </summary>
         /// <param name="selections">The <see cref="IEnumerable{ISelection}"/> containing selections for which the probability should be fetched</param>
         /// <returns>A <see cref="Task{CalculationDTO}"/> representing the probability calculation</returns>
-        Task<CalculationDTO> GetDataAsync(IEnumerable<ISelection> selections);
+        Task<CalculationDto> GetDataAsync(IEnumerable<ISelection> selections);
     }
 }

@@ -2,6 +2,8 @@
 * Copyright (C) Sportradar AG. See LICENSE for full license governing this code
 */
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Sportradar.OddsFeed.SDK.Messages.REST;
 
 namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet
@@ -9,7 +11,7 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet
     /// <summary>
     /// Defines a data-transfer-object for probability calculations
     /// </summary>
-    internal class CalculationDTO
+    internal class CalculationDto
     {
         /// <summary>
         /// Gets the odds
@@ -26,16 +28,27 @@ namespace Sportradar.OddsFeed.SDK.Entities.REST.Internal.DTO.CustomBet
         /// </summary>
         public string GeneratedAt { get; }
 
-        internal CalculationDTO(CalculationResponseType calculation)
+        /// <summary>
+        /// Gets the available selections
+        /// </summary>
+        public IList<AvailableSelectionsDto> AvailableSelections { get; }
+
+        internal CalculationDto(CalculationResponseType calculation)
         {
             if (calculation == null)
             {
                 throw new ArgumentNullException(nameof(calculation));
             }
 
+            AvailableSelections = new List<AvailableSelectionsDto>();
             Odds = calculation.calculation.odds;
             Probability = calculation.calculation.probability;
             GeneratedAt = calculation.generated_at;
+
+            if (calculation.available_selections != null && calculation.available_selections.Any())
+            {
+                AvailableSelections = calculation.available_selections.Select(s => new AvailableSelectionsDto(s, calculation.generated_at)).ToList();
+            }
         }
     }
 }
